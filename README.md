@@ -3,14 +3,14 @@
 ## Installation
 #### 1. Obtain the Lithops_RabbitMQ code: clone the sources and set the ENV variables
 ```bash
-git clone https://gitlab.bsc.es/datacentric-computing/lithops_rabbitmq.git
-cd lithops_rabbitmq
-export LITHOPS_RABBITMQ_HOME=$(pwd)
+git clone https://github.com/neardata-eu/Lithops-HPC.git
+cd lithops-hpc
+export LITHOPS_HPC_HOME=$(pwd)
 ```
 #### 2. Install dependencies in a mamba environment
 ```bash
 conda install -n base -c conda-forge mamba
-mamba env update -n lhops --file $LITHOPS_RABBITMQ_HOME/lhops.yml
+mamba env update -n lhops --file $LITHOPS_HPC_HOME/lhops.yml
 conda activate lhops
 
 # to deactivate or remove if necessary
@@ -20,7 +20,7 @@ conda remove --name lhops --all
 
 #### 3. Build Singularity Images
 ```bash
-cd $LITHOPS_RABBITMQ_HOME/sif/
+cd $LITHOPS_HPC_HOME/sif/
 lithops runtime build -b singularity singularity-plantilla321
 sudo singularity build rabbitmq.sif rabbitmq.def
 ```
@@ -29,14 +29,14 @@ sudo singularity build rabbitmq.sif rabbitmq.def
 num_lithops_workers=num_cpus x num_nodes
 ```bash
 cd lithops_rabbitmq
-export LITHOPS_RABBITMQ_HOME=$(pwd)
+export LITHOPS_HPC_HOME=$(pwd)
 export MN5_QOS=<MN5_Partition>
 export MN5_USER=<MN5_ACCOUNT>
-export PATH=$LITHOPS_RABBITMQ_HOME/scripts:$PATH
-export LITHOPS_CONFIG_FILE=$LITHOPS_RABBITMQ_HOME/lithops_wk/lithops_config
+export PATH=$LITHOPS_HPC_HOME/scripts:$PATH
+export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_wk/lithops_config
 
 conda activate lhops
-lithops_rabbitmq.sh <num_cpus> <num_nodes>
+lithops_hpc.sh <num_cpus> <num_nodes>
 ```
 
 ## Run Examples
