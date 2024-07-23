@@ -1,0 +1,21 @@
+#lithops:
+#  backend: localhost
+#  storage: localhost  # You can also set it to a public storage backend, such as aws_s3 or ibm_cos
+
+lithops:
+    backend : singularity
+    storage: localhost
+    monitoring: rabbitmq
+    log_level: INFO
+
+rabbitmq: 
+    amqp_url: amqp://admin1234:1234@localhost:5672/testadmin
+
+singularity:
+    runtime: singularity-plantilla
+    sif_path: ./
+    worker_processes: 8
+
+localhost:
+    storage_bucket: $LITHOPS_HPC_HOME/lithops_wk
+

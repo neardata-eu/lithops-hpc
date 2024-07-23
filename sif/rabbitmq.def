@@ -1,0 +1,69 @@
+BootStrap: docker
+From: ubuntu:22.04
+
+%post
+    export DEBIAN_FRONTEND=noninteractive 
+    # Install necessary packages
+    apt-get update && apt-get install -y curl gnupg apt-transport-https
+    apt-get update && apt-get install -y git build-essential wget net-tools
+    apt-get install -y python3.10 python3-pip
+
+    # Install pika library using pip
+    pip3 install pika==1.3.2
+   
+    ## Team RabbitMQ's main signing key
+    curl -1sLf "https://keys.openpgp.org/vks/v1/by-fingerprint/0A9AF2115F4687BD29803A206B73A36E6026DFCA" | gpg --dearmor > /usr/share/keyrings/com.rabbitmq.team.gpg
+    ## Community mirror of Cloudsmith: modern Erlang repository
+    curl -1sLf https://github.com/rabbitmq/signing-keys/releases/download/3.0/cloudsmith.rabbitmq-erlang.E495BB49CC4BBE5B.key | gpg --dearmor > /usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg
+    ## Community mirror of Cloudsmith: RabbitMQ repository
+    curl -1sLf https://github.com/rabbitmq/signing-keys/releases/download/3.0/cloudsmith.rabbitmq-server.9F4587F226208342.key | gpg --dearmor > /usr/share/keyrings/rabbitmq.9F4587F226208342.gpg
+
+    ## Add apt repositories maintained by Team RabbitMQ
+    echo "## Provides modern Erlang/OTP releases" > /etc/apt/sources.list.d/rabbitmq.list
+    echo "##" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb [signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa1.novemberain.com/rabbitmq/rabbitmq-erlang/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb-src [signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa1.novemberain.com/rabbitmq/rabbitmq-erlang/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "# another mirror for redundancy" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb [signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa2.novemberain.com/rabbitmq/rabbitmq-erlang/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb-src [signed-by=/usr/share/keyrings/rabbitmq.E495BB49CC4BBE5B.gpg] https://ppa2.novemberain.com/rabbitmq/rabbitmq-erlang/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "## Provides RabbitMQ" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "##" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb [signed-by=/usr/share/keyrings/rabbitmq.9F4587F226208342.gpg] https://ppa1.novemberain.com/rabbitmq/rabbitmq-server/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb-src [signed-by=/usr/share/keyrings/rabbitmq.9F4587F226208342.gpg] https://ppa1.novemberain.com/rabbitmq/rabbitmq-server/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "# another mirror for redundancy" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb [signed-by=/usr/share/keyrings/rabbitmq.9F4587F226208342.gpg] https://ppa2.novemberain.com/rabbitmq/rabbitmq-server/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+    echo "deb-src [signed-by=/usr/share/keyrings/rabbitmq.9F4587F226208342.gpg] https://ppa2.novemberain.com/rabbitmq/rabbitmq-server/deb/ubuntu jammy main" >> /etc/apt/sources.list.d/rabbitmq.list
+
+
+    ## Update package indices
+    apt-get update -y
+
+    ## Install Erlang packages
+    apt-get install -y erlang-base \
+                        erlang-asn1 erlang-crypto erlang-eldap erlang-ftp erlang-inets \
+                        erlang-mnesia erlang-os-mon erlang-parsetools erlang-public-key \
+                        erlang-runtime-tools erlang-snmp erlang-ssl \
+                        erlang-syntax-tools erlang-tftp erlang-tools erlang-xmerl
+
+    
+    # Clone the RabbitMQ binary repository
+    mkdir -p /opt/
+    cd /opt/
+    wget https://github.com/rabbitmq/rabbitmq-server/releases/download/v3.13.1/rabbitmq-server-generic-unix-3.13.1.tar.xz
+    tar -xf rabbitmq-server-generic-unix-3.13.1.tar.xz 
+    cd rabbitmq_server-3.13.1
+    mkdir -p ./var/lib/
+    mkdir -p ./var/lib/rabbitmq
+    mkdir -p ./var/lib/log
+    echo 'export PATH="$PATH:/opt/rabbitmq_server-3.13.1/sbin/"' >> /etc/profile
+
+%environment
+    # Set environment variables required by the container
+    export XDG_RUNTIME_DIR=/run/user/$(id -u)
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
+%startscript
+    exec /bin/bash "$@"   
