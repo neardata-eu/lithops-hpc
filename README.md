@@ -27,7 +27,7 @@ lithops runtime build -b singularity singularity-plantilla342
 
 ## Usage 
 ```bash
-cd $LITHOPS_HPC_HOME
+cd lithops-hpc
 export LITHOPS_HPC_HOME=$(pwd)
 export MN5_QOS=<MN5_Partition>
 export MN5_USER=<MN5_ACCOUNT>
@@ -41,7 +41,7 @@ num_lithops_workers=num_cpus x num_nodes
 
 ## Run Examples
 ```bash
-cd examples/sleep 
+cd $LITHOPS_HPC_HOME/examples/sleep 
 mkdir plots
 sbatch -A $MN5_USER -q $MN5_QOS job.slurm
 ```
