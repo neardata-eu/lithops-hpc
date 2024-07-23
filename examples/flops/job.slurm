@@ -13,4 +13,4 @@ export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_wk/lithops_config
 conda activate lhops
 
 # Run the Python script
-python flops_benchmark.py -b singularity -s localhost --loopcount=5 --matn=4096 --tasks=224 --memory=1024 --outdir=plots
+python flops_benchmark.py -b singularity -s localhost --loopcount=5 --matn=4096 --tasks=100 --memory=1024 --outdir=plots

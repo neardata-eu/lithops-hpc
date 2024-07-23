@@ -13,4 +13,4 @@ export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_wk/lithops_config
 conda activate lhops
 
 # Run the Python script
-python os_benchmark.py run -b singularity -s localhost --mb_per_file=512 --bucket_name=storage --number=96 --outdir=plots
+python os_benchmark.py run -b singularity -s localhost --mb_per_file=512 --bucket_name=storage --number=100 --outdir=plots
