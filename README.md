@@ -22,7 +22,7 @@ conda remove --name lhops --all
 ```bash
 cd $LITHOPS_HPC_HOME/sif/
 sudo singularity build rabbitmq.sif rabbitmq.def
-lithops runtime build -b singularity singularity-plantilla321
+lithops runtime build -b singularity singularity-plantilla342
 ```
 
 ## Usage 
