@@ -1,7 +1,7 @@
-# Lithops_RabbitMQ
+# Lithops-HPC
 
 ## Installation
-#### 1. Obtain the Lithops_RabbitMQ code: clone the sources and set the ENV variables
+#### 1. Obtain the Lithops-HPC code: clone the sources and set the ENV variables
 ```bash
 git clone https://github.com/neardata-eu/lithops-hpc.git
 cd lithops-hpc
