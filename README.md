@@ -35,7 +35,7 @@ export PATH=$LITHOPS_HPC_HOME/scripts:$PATH
 export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_wk/lithops_config
 
 conda activate lhops
-lithops_hpc.sh <num_cpus> <num_nodes>
+$LITHOPS_HPC_HOME/scripts/lithops_hpc.sh <num_cpus> <num_nodes>
 ```
 num_lithops_workers=num_cpus x num_nodes
 
@@ -47,7 +47,7 @@ sbatch -A $MN5_USER -q $MN5_QOS job.slurm
 ```
 
 ## Setup Lithops storage directory
-By default, LITHOPS_HPC_HOME/lithops_wk directory is used for storage. 
+By default, $LITHOPS_HPC_HOME/lithops_wk directory is used for storage. 
 To specify a different storage location, set the LITHOPS_HPC_STORAGE environment variable:
 ```bash
 export LITHOPS_HPC_STORAGE=<custom_dir>
