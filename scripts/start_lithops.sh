@@ -42,10 +42,6 @@ fi
 
     
 cat << EOF > lithops_config
-#lithops:
-#  backend: localhost
-#  storage: localhost  # You can also set it to a public storage backend, such as aws_s3 or ibm_cos
-
 lithops:
     backend : singularity
     storage: localhost

@@ -11,7 +11,7 @@ import argparse
 
 
 def my_map_function(x):
-    print("HOLA")
+    print("Hello World!")
     time.sleep(5)
 
 if __name__ == "__main__":
