@@ -59,7 +59,7 @@ singularity:
 localhost:
     storage_bucket: $LITHOPS_HPC_STORAGE
 EOF
-lithops_job=$(sbatch --parsable --dependency=after:$nginx_job -A $MN5_USER -q $MN5_QOS -c $cpus -N $nodes lithops_background.slurm $nginx_hostname )
+lithops_job=$(sbatch --parsable --dependency=after:$nginx_job -A $MN5_USER -q $MN5_QOS -c $cpus -N $nodes -n $nodes lithops_background.slurm $nginx_hostname )
 if [ $? -ne 0 ]; then
   echo "Setting Lithops failed."
   cd $current_dir
