@@ -59,7 +59,7 @@ To specify a different storage location, set the LITHOPS_HPC_STORAGE environment
 export LITHOPS_HPC_STORAGE=<custom_dir>
 
 # to set storage access control lists
-setfacl -d -m o::rwx $LITHOPS_RABBITMQ_STORAGE
+setfacl --recursive  -m g::rwx $LITHOPS_HPC_STORAGE
 ```
 
 
