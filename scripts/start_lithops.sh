@@ -31,16 +31,15 @@ echo "Setting nodes:$nodes cpusxnode:$cpus, total workers:$workers"
 echo "Setting Lithops Background"
 cd $LITHOPS_HPC_HOME/lithops_wk
 
-# Check if LITHOPS_HPC_STORAGE environment variable exists# Check if LITHOPS_HPC_STORAGE environment variable is set
+# Check if LITHOPS_HPC_STORAGE environment variable is set
 if [ -z "$LITHOPS_HPC_STORAGE" ]; then
     export LITHOPS_HPC_STORAGE=$LITHOPS_HPC_HOME/lithops_wk/storage
-    mkdir -p $LITHOPS_HPC_STORAGE
     echo "LITHOPS_HPC_STORAGE environment variable set to : $LITHOPS_HPC_STORAGE"
 
 else
     echo "LITHOPS_HPC_STORAGE environment variable already set to: $LITHOPS_HPC_STORAGE"
 fi
-
+mkdir -p $LITHOPS_HPC_STORAGE
 touch $LITHOPS_HPC_STORAGE/lithops_config    
 cat << EOF > $LITHOPS_HPC_STORAGE/lithops_config
 
