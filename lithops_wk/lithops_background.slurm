@@ -13,7 +13,7 @@ fi
 NGINX_HOSTNAME=$1
 
 export SRUN_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK}
-export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_wk/lithops_config
+export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_STORAGE/lithops_config
 
 # Load any necessary modules (e.g., for Python)
 #module load singularity/4.1.0

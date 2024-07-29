@@ -19,14 +19,20 @@ if [ "$#" -ne 3 ]; then
     exit 1
 fi
 
-storage_bucket=$(grep -v "^#" lithops_config | grep "storage_bucket" | cut -f2 -d":" | cut -f1 -d"#")
+# Check if LITHOPS_CONFIG_FILE environment variable exists
+if [ -z "$LITHOPS_CONFIG_FILE" ]; then
+    echo "LITHOPS_CONFIG_FILE environment variable does not exist"
+    exit 1
+fi
+
+
+storage_bucket=$(grep -v "^#" $LITHOPS_CONFIG_FILE | grep "storage_bucket" | cut -f2 -d":" | cut -f1 -d"#")
 storage_bucket=$(echo "$storage_bucket" | xargs)
 
-echo "checking $storage_bucket"
 if [ -d "$storage_bucket" ]; then
     echo "Using storage: $storage_bucket"
 else
-    echo "Storage$storage_bucket directory does not exist."
+    echo "Storage $storage_bucket directory does not exist."
     exit 1
 fi
 

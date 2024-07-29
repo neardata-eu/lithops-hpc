@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=1        		# Number of tasks (cores) per node
 #SBATCH --cpus-per-task=2           		# Number of CPU cores per task
 
-export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_wk/lithops_config
+export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_STORAGE/lithops_config
 
 # Load any necessary modules (e.g., for Python)
 #module load intel mkl python/3.10.2
