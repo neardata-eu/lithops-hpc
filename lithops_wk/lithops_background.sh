@@ -38,7 +38,7 @@ fi
 
 if [ "$1" = "start" ]; then
   # Start singularity-plantilla instance
-  execute_command singularity instance start -B $storage_bucket:$storage_bucket $3 lithops-worker
+  execute_command singularity instance start -B $storage_bucket:$storage_bucket -B $LITHOPS_HPC_HOME:$LITHOPS_HPC_HOME $3 lithops-worker
   sleep 30
   # Running background
   execute_command singularity run --env AMQP_URL=amqp://admin1234:1234@$2:5672/testadmin instance://lithops-worker
