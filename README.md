@@ -24,6 +24,11 @@ cd $LITHOPS_HPC_HOME/sif/
 sudo singularity build rabbitmq.sif rabbitmq.def
 lithops runtime build -b singularity singularity-plantilla342
 ```
+#### 3.1 Optional: Build a custom runtime from a definition file
+```bash
+lithops runtime build -b singularity singularity-plantilla342 -f singularity-template.def --fakeroot --force
+```
+
 
 ## Usage 
 ```bash
