@@ -35,7 +35,7 @@ if [ $# -ne 3 ]; then
     exit 1
 fi
 nginx_job=$1
-nginx_hostname=$(squeue | grep $nginx_job |  rev | cut -d " " -f1 | rev)
+nginx_hostname=$(squeue -o "%9i %.60j %R" | grep $nginx_job |  rev | cut -d " " -f1 | rev)
 
 cpus=$2
 nodes=$3

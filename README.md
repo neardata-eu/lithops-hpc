@@ -22,23 +22,17 @@ conda remove --name lhops --all
 ```bash
 cd $LITHOPS_HPC_HOME/sif/
 sudo singularity build rabbitmq.sif rabbitmq.def
-lithops runtime build -b singularity singularity-plantilla342
-```
-#### 3.1 Optional: Build a custom runtime from a definition file
-```bash
-lithops runtime build -b singularity singularity-plantilla342 -f singularity-template.def --fakeroot --force
 ```
 
-
-## Usage 
+## CPU-Backend Deployment 
 ```bash
 cd lithops-hpc
-export LITHOPS_HPC_HOME=$(pwd)
-export MN5_QOS=<MN5_Partition>
+export MN5_QOS=<MN5_GP_Partition>
 export MN5_USER=<MN5_ACCOUNT>
-export PATH=$LITHOPS_HPC_HOME/scripts:$PATH
+export LITHOPS_HPC_HOME=$(pwd)
 export LITHOPS_HPC_STORAGE=$LITHOPS_HPC_HOME/lithops_wk/storage
 export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_STORAGE/lithops_config
+export PATH=$LITHOPS_HPC_HOME/scripts:$PATH
 
 conda activate lhops
 lithops_hpc.sh <num_cpus> <num_nodes>
@@ -47,12 +41,14 @@ num_lithops_workers=num_cpus x num_nodes
 
 ## Run Examples
 ```bash
-cd $LITHOPS_HPC_HOME/examples/sleep 
-mkdir plots
-
+cd lithops-hpc
+export LITHOPS_HPC_HOME=$(pwd)
 export LITHOPS_HPC_STORAGE=$LITHOPS_HPC_HOME/lithops_wk/storage
 export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_STORAGE/lithops_config
 conda activate lhops
+
+cd $LITHOPS_HPC_HOME/examples/sleep 
+mkdir -p plots
 
 python sleep.py
 ```
@@ -66,7 +62,6 @@ export LITHOPS_HPC_STORAGE=<custom_dir>
 # to set storage access control lists
 setfacl --recursive  -m g::rwx $LITHOPS_HPC_STORAGE
 ```
-
 
 ## Contributing
 

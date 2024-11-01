@@ -36,7 +36,7 @@ check_file(){
 # Check if the service is running
 wait_for_job() {
     local job_id=$1
-    local max_loops=10
+    local max_loops=30
     local loop_counter=0
     echo "Check the status of the job: $job_id"
     while true; do
@@ -50,7 +50,7 @@ wait_for_job() {
         ((loop_counter++))
         # Check if maximum loops reached
         if [ "$loop_counter" -gt "$max_loops" ]; then
-            echo "Something was wrong. Exiting..."
+            echo "JobState is pending. Check SLURM queue and try again. Exiting..."
             cd $current_dir
     	    exit 1
             break
@@ -104,6 +104,7 @@ wait_for_job $master_job_id
 echo "RabbitMQ Master node ready"
 echo ""
 echo ""
+sleep 25
 #### 3. Set Up Lithops backend
 echo "Starting Lithops backend . . ."
 execute_command $LITHOPS_HPC_HOME/scripts/start_lithops.sh $master_job_id $cpus $nodes

@@ -15,7 +15,7 @@ if [ $# -ne 3 ]; then
     exit 1
 fi
 nginx_job=$1
-nginx_hostname=$(squeue | grep $nginx_job |  rev | cut -d " " -f1 | rev)
+nginx_hostname=$(squeue -o "%9i %.60j %R" | grep $nginx_job |  rev | cut -d " " -f1 | rev)
 
 cpus=$2
 nodes=$3
@@ -46,8 +46,8 @@ cat << EOF > $LITHOPS_HPC_STORAGE/lithops_config
 lithops:
     backend : singularity
     storage: localhost
-    monitoring: rabbitmq
     log_level: INFO
+    execution_timeout: 36000
 
 rabbitmq: 
     amqp_url: amqp://admin1234:1234@$nginx_hostname:5672/testadmin
@@ -55,7 +55,7 @@ rabbitmq:
 singularity:
     runtime: singularity-plantilla342
     sif_path: $LITHOPS_HPC_HOME/sif
-    worker_processes: $workers
+    worker_processes: $cpus
 
 localhost:
     storage_bucket: $LITHOPS_HPC_STORAGE
