@@ -150,9 +150,7 @@ def prepare_and_run_task(task):
     os.environ['PYTHONUNBUFFERED'] = 'True'
     os.environ.update(task.extra_env)
 
-    storage_backend = task.config['lithops']['storage']
-    bucket = task.config[storage_backend]['storage_bucket']
-    task.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task.call_id)
+    task.task_dir = os.path.join(LITHOPS_TEMP_DIR, JOBS_PREFIX, task.job_key, task.call_id)
     task.log_file = os.path.join(task.task_dir, 'execution.log')
     task.stats_file = os.path.join(task.task_dir, 'job_stats.txt')
     os.makedirs(task.task_dir, exist_ok=True)
