@@ -110,7 +110,7 @@ class ServerlessHandler:
 
     def get_runtime_key(self, runtime_name, memory, version):
         """
-        Wrapper method that returns a formated string that represents the runtime key.
+        Wrapper method that returns a formatted string that represents the runtime key.
         Each backend has its own runtime key format. Used to store runtime metadata
         into the storage
         """

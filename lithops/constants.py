@@ -111,7 +111,8 @@ SERVERLESS_BACKENDS = [
     'aliyun_fc',
     'oracle_f',
     'k8s',
-    'singularity'
+    'singularity',
+    'hpc'
 ]
 
 STANDALONE_BACKENDS = [

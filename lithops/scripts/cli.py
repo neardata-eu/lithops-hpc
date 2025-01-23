@@ -545,8 +545,10 @@ def list_runtimes(name, config, backend, storage, debug):
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops runtime list" command is only available for serverless backends')
 
+    storage_config = extract_storage_config(config)
+    internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, None)
+    compute_handler = ServerlessHandler(compute_config, internal_storage)
     runtimes = compute_handler.list_runtimes(runtime_name=name)
 
     headers = ['Runtime Name', 'Memory Size', 'Lithops Version', 'Worker Name']
