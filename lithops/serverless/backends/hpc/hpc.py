@@ -76,17 +76,17 @@ class HpcBackend:
         logger.error("HPC runtimes cannot be built")
 
     def _save_runtime_job_id(self, key, job_id):
-        path = [RUNTIMES_PREFIX, key + ".pid"]
+        path = [RUNTIMES_PREFIX, key + ".jid"]
         obj_key = "/".join(path).replace("\\", "/")
         logger.debug(
-            "Uploading runtime pid to: {}://{}/{}".format(
+            "Uploading runtime job id to: {}://{}/{}".format(
                 self.internal_storage.backend, self.internal_storage.bucket, obj_key
             )
         )
         self.internal_storage.storage.put_object(self.internal_storage.bucket, obj_key, job_id)
 
     def _get_runtime_job_id(self, key):
-        path = [RUNTIMES_PREFIX, key + ".pid"]
+        path = [RUNTIMES_PREFIX, key + ".jid"]
         obj_key = "/".join(path).replace("\\", "/")
         try:
             return self.internal_storage.storage.get_object(self.internal_storage.bucket, obj_key).decode()
@@ -95,7 +95,7 @@ class HpcBackend:
             return None
 
     def _delete_runtime_job_id(self, key):
-        path = [RUNTIMES_PREFIX, key + ".pid"]
+        path = [RUNTIMES_PREFIX, key + ".jid"]
         obj_key = "/".join(path).replace("\\", "/")
         self.internal_storage.storage.delete_object(self.internal_storage.bucket, obj_key)
 
@@ -166,7 +166,7 @@ class HpcBackend:
                 properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
             )
 
-            if slurm_job.wait(""):
+            if slurm_job.wait("", sleep=5):
                 logger.info(f"HPC runtime {runtime_name} stopped.")
             else:
                 logger.error(f"Couldn't stop runtime {runtime_name}. Check slurm job {slurm_job_id}.")
