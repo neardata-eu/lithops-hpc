@@ -124,6 +124,7 @@ def actions_switcher(ch, method, properties, body):
     elif action == "send_task":
         manage_work_queue(ch, method, payload)
     elif action == "stop":
+        ch.basic_ack(delivery_tag=method.delivery_tag)
         ch.basic_cancel(method.consumer_tag)
 
 
