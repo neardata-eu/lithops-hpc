@@ -27,7 +27,7 @@ Replace `<username>`, `<password>`, `<rabbitmq_host>`, `<rabbitmq_port>`, and `<
 
 ### Configure HPC backend
 
-The HPC backend uses runtime deployments to start/stop workers.
+The HPC backend uses Lithops runtime deployments to start/stop workers.
 HPC workers run in slurm jobs. For that, the Lithops client must have access to slurm commands to submit jobs and check their status.
 HPC runtime configurations are defined in the Lithops config file.
 
@@ -37,35 +37,39 @@ hpc:
     runtime: <RUNTIME_NAME>
     runtimes:
         <runtime_name>:
-            slurm_account: <SLURM_ACCOUNT>
-            slurm_qos: <SLURM_QUEUE>
-            num_nodes: <SLURM_JOB_NODES>
-            cpus_node: <CPUS_PER_NODE>
-            workers_node: <WORKERS_PER_NODE>
+            account: <SLURM_ACCOUNT>
+            qos: <SLURM_QUEUE>
+            num_workers: <NUM_LITHOPS_WORKERS>
+            cpus_worker: <CPUS_PER_WORKER>
+            cpus_task: <CPUS_PER_LITHOPS_TASK>
         <runtime2>:
             ...
 ```
 
 When using one of these runtimes (either by setting the `runtime` key or specifying one on the `FunctionExecutor`), Lithops will spawn the corresponding slurm job (as a runtime deploy, which happens automatically the first time it is used).
-Then it will generate its metadata and store it in the configured storage, that further Lithops executions may use to know the runtime state.
-Runtimes are not automatically removed. To do so, use the Lithops CLI `lithops runtime delete <runtime_name>`. This will stop the slurm job and remove any metadata in storage.
+This may take some time, which will appear as a cold start in the application execution.
+Alternatively, you can start the runtime manually with the Lithops CLI `lithops runtime deploy <runtime_name>`.
 
-You can check the slurm job logs in the `slurm_lw` directory created in the client working directory (assuming it is in a shared FS like GPFS or Lustre).
+Right after deployment, Lithops will generate the runtime metadata and store it in the configured storage, that further Lithops executions may use to know the runtime state.
 
-It is required to run the HPC backend in conjunction with the localhost storage backend, setting the `storage_bucket` to a path in the FS shared space, available to all cluster nodes.
+Runtimes are not automatically removed. To do so, use the Lithops CLI `lithops runtime delete <runtime_name>`. This will stop the slurm job and remove any metadata in storage. If the slurm job is cancelled some other way, metadata will remain. Lithops should detect that the metadata is stale and remove it, when the job it points to is not active.
+
+You can check the slurm job logs in the `slurm_lithops_workers` directory created in the client working directory (assuming it is in a shared PFS like GPFS or Lustre).
+
+It is required to run the HPC backend in conjunction with the localhost storage backend, setting the `storage_bucket` to a path in the PFS shared space, available to all cluster nodes.
 
 ## Summary of Configuration Keys for HPC
 
 | Group | Key                 | Default | Mandatory | Additional info    |
 |-------|---------------------|---------|-----------|--------------------|
 | hpc   | worker_processes    | 100 | no  | Number of tasks sent in each RabbitMQ message. Ideally, set to a multiple of the node's CPU count. |
-| hpc   | runtime             |     | no  | Name of the HPC runtime to be used as the default. Must be one of the defined in the `runtimes` configuration. If skipped, or set to `default`, the first item in `runtimes` will be used. |
-| hpc   | runtimes            |     | yes | Must contain at least one configuration of aof an HPC runtime. Each HPC runtime is a Slurm job running lithops workers with a specific configuration (number of nodes, partition, etc.). |
-| hpc   | runtimes.slurm_account |     | yes | Slurm account name for this runtime configuration. |
-| hpc   | runtimes.slurm_qos |     | yes | Slurm queue name for this runtime configuration. |
-| hpc   | runtimes.num_nodes |     | yes | Number of nodes to request to Slurm for this runtime configuration. |
-| hpc   | runtimes.cpus_node |     | yes | Number of CPUs per node to request to Slurm for this runtime configuration. |
-| hpc   | runtimes.workers_node |     | no | Number of tasks each node accepts to run concurrently for this runtime configuration. If not set, this will be set to `cpus_node`. |
+| hpc   | runtime             |     | no  | Name of the HPC runtime to be used as the default. Must be one of the defined in the `runtimes` configuration. If skipped, or set to `"default"`, the first item in `runtimes` will be used. |
+| hpc   | runtimes            |     | yes | Must contain at least one configuration of an HPC runtime. Each HPC runtime is a Slurm job running Lithops workers with a specific configuration (number of workers, partition, etc.). |
+| hpc   | runtimes.account |     | yes | Slurm account name for this runtime configuration. |
+| hpc   | runtimes.qos |     | yes | Slurm queue (QOS) name for this runtime configuration. |
+| hpc   | runtimes.num_workers |     | yes | Number of Lithops workers to run for this runtime configuration. |
+| hpc   | runtimes.cpus_worker |     | yes | Number of CPUs per Lithops worker for this runtime configuration. |
+| hpc   | runtimes.cpus_task |  1  | no | Number CPUs per Lithops task (a function execution). It must be lower than `cpus_worker`, since it will define how many tasks can be fit concurrently on each worker. By default, workers take as many tasks as CPUs available. |
 
 
 ## Test Lithops

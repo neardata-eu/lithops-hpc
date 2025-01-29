@@ -109,17 +109,20 @@ class HpcBackend:
 
         slurm_cmd = Slurm(
             job_name=f"lithops_hpc_workers-{runtime_name}",
-            output=f"slurm_lw/{runtime_name}_{SP.JOB_ID}.out.log",
-            error=f"slurm_lw/{runtime_name}_{SP.JOB_ID}.err.log",
-            A=runtime_config["slurm_account"],
-            q=runtime_config["slurm_qos"],
-            c=runtime_config["cpus_node"],
-            N=runtime_config["num_nodes"],
-            n=runtime_config["num_nodes"],
+            output=f"slurm_lithops_workers/{runtime_name}_{SP.JOB_ID}.out.log",
+            error=f"slurm_lithops_workers/{runtime_name}_{SP.JOB_ID}.err.log",
+            account=runtime_config["account"],
+            qos=runtime_config["qos"],
+            ntasks=runtime_config["num_workers"],
+            cpus_per_task=runtime_config["cpus_worker"],
+            # nodes=runtime_config["num_nodes"],
         )
-        slurm_job = slurm_cmd.sbatch("python", entry_point, rabbit_url, runtime_config["workers_node"])
+        slurm_cmd.add_cmd("export SRUN_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK}")
+        slurm_job = slurm_cmd.sbatch(
+            "srun", "-l", "python", entry_point, rabbit_url, runtime_config["max_tasks_worker"]
+        )
         assert slurm_job.wait(), "Lithops HPC runtime slurm job failed."
-        time.sleep(10)
+        time.sleep(10)  # Wait to ensure initializations
         if not slurm_job.is_running():
             raise Exception("Slurm job failed. Check logs.")
 
@@ -157,14 +160,15 @@ class HpcBackend:
 
             message = {"action": "stop", "payload": encoded_payload}
 
-            # Send message to RabbitMQ
-            # TODO: use per-runtime rabbit queues
-            self.channel.basic_publish(
-                exchange="",
-                routing_key="task_queue",
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
-            )
+            # Send message(s) to RabbitMQ
+            for _ in range(self.hpc_config["runtimes"][runtime_name]["num_workers"]):
+                # TODO: use per-runtime rabbit queues
+                self.channel.basic_publish(
+                    exchange="",
+                    routing_key="task_queue",
+                    body=json.dumps(message),
+                    properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
+                )
 
             if slurm_job.wait("", sleep=5):
                 logger.info(f"HPC runtime {runtime_name} stopped.")

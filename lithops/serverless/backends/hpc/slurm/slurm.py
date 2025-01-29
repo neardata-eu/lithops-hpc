@@ -124,7 +124,6 @@ class Slurm:
         self,
         *run_cmd: str,
         convert: bool = True,
-        verbose: bool = True,
         sbatch_cmd: str = "sbatch",
         shell: str = "/bin/bash",
         job_file: str = None,
@@ -138,7 +137,6 @@ class Slurm:
         ```python
         > slurm.sbatch('python main.py')
         > slurm.sbatch('python', 'main.py')
-        > slurm.sbatch('python', 'main.py', verbose=False)
         ```
 
         This function employs the 'here document' syntax, which requires that
@@ -160,6 +158,7 @@ class Slurm:
         designated file, and then the command `sbatch <job_file>` will be
         executed.
         """
+        sbatch_cmd += " --parsable"
         self.add_cmd(*run_cmd)
         script = self.script(shell, convert)
         if job_file is not None:
@@ -176,9 +175,7 @@ class Slurm:
             )
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         assert result.returncode == 0, result.stderr
-        if verbose:
-            print(result.stdout)
-        job_id = result.stdout.strip().split(" ")[3]
+        job_id = result.stdout.strip().split(";")[0]
         job = SlurmJob(job_id, script)
         return job
 

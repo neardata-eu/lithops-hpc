@@ -131,10 +131,12 @@ def actions_switcher(ch, method, properties, body):
 if __name__ == "__main__":
     # Parse args
     rabbit_url = sys.argv[1]
-    workers = int(sys.argv[2])
+    task_concurrency = int(sys.argv[2])
+    setup_lithops_logger("INFO")
 
-    # Shared variable to track running jobs / available cpu space
-    running_jobs = Value("i", workers)
+    logger.info(f"Starting HPC Lithops worker node... max_tasks={task_concurrency}")
+    # Shared variable to track running jobs / max concurrent tasks
+    running_jobs = Value("i", task_concurrency)
 
     # Connect to rabbitmq
     params = pika.URLParameters(rabbit_url)

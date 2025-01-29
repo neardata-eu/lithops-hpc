@@ -32,12 +32,12 @@ def load_config(config_data):
     assert len(config_data["hpc"]["runtimes"].items()) > 0, "At least one runtime config is needed for HPC backend."
 
     for k, v in config_data["hpc"]["runtimes"].items():
-        assert "slurm_account" in v, f"HPC runtime {k} must define a slurm_account"
-        assert "slurm_qos" in v, f"HPC runtime {k} must define a slurm_qos"
-        assert "num_nodes" in v, f"HPC runtime {k} must define num_nodes"
-        assert "cpus_node" in v, f"HPC runtime {k} must define cpus_node"
-        if "workers_node" not in v:
-            v["workers_node"] = v["cpus_node"]
+        assert "account" in v, f"HPC runtime {k} must define 'account'"
+        assert "qos" in v, f"HPC runtime {k} must define 'qos'"
+        assert "num_workers" in v, f"HPC runtime {k} must define 'num_workers'"
+        assert "cpus_worker" in v, f"HPC runtime {k} must define 'cpus_worker'"
+        v["max_tasks_worker"] = divmod(v["cpus_worker"], v["cpus_task"])[0] if "cpus_task" in v else v["cpus_worker"]
+        assert v["max_tasks_worker"] > 0, "HPC runtime 'cpus_task' has to be lower than 'cpus_worker'"
 
     assert "rabbitmq" in config_data and "amqp_url" in config_data["rabbitmq"], (
         "To use the HPC backend you must configure RabbitMQ."
