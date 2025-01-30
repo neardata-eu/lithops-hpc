@@ -150,3 +150,4 @@ if __name__ == "__main__":
 
     logger.info("Listening to RabbitMQ...")
     channel.start_consuming()
+    connection.close()

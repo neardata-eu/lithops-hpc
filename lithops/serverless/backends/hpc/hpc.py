@@ -58,6 +58,9 @@ class HpcBackend:
         msg = COMPUTE_CLI_MSG.format("HPC")
         logger.info(f"{msg}")
 
+    def __del__(self):
+        self.connection.close()
+
     def _format_runtime_name(self, runtime_name, version=__version__):
         name = f"{runtime_name}-{version}"
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
