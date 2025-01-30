@@ -26,6 +26,7 @@ import pika
 import pika.adapters.blocking_connection
 import pika.channel
 
+from lithops.serverless.backends.hpc.hpc import RETURN_QUEUE_POSTFIX
 from lithops.utils import b64str_to_dict, dict_to_b64str, setup_lithops_logger
 from lithops.version import __version__
 from lithops.worker import function_handler
@@ -40,7 +41,7 @@ def extract_runtime_meta(ch: pika.channel.Channel):
     runtime_meta = get_runtime_metadata()
     ch.basic_publish(
         exchange="",
-        routing_key="status_queue",
+        routing_key=rmq_task_queue + RETURN_QUEUE_POSTFIX,
         body=json.dumps(runtime_meta),
         properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
     )
@@ -91,7 +92,7 @@ def manage_work_queue(ch, method, payload):
 
         ch.basic_publish(
             exchange="",
-            routing_key="task_queue",
+            routing_key=rmq_task_queue,
             body=json.dumps(message_to_send),
             properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
         )
@@ -131,7 +132,8 @@ def actions_switcher(ch, method, properties, body):
 if __name__ == "__main__":
     # Parse args
     rabbit_url = sys.argv[1]
-    task_concurrency = int(sys.argv[2])
+    rmq_task_queue = sys.argv[2]
+    task_concurrency = int(sys.argv[3])
     setup_lithops_logger("INFO")
 
     logger.info(f"Starting HPC Lithops worker node... max_tasks={task_concurrency}")
@@ -142,12 +144,12 @@ if __name__ == "__main__":
     params = pika.URLParameters(rabbit_url)
     connection = pika.BlockingConnection(params)
     channel = connection.channel()
-    channel.queue_declare(queue="task_queue", durable=True)
+    channel.queue_declare(queue=rmq_task_queue, durable=True)
     channel.basic_qos(prefetch_count=1)
 
     # Start listening for tasks/jobs
-    channel.basic_consume(queue="task_queue", on_message_callback=actions_switcher)
+    channel.basic_consume(queue=rmq_task_queue, on_message_callback=actions_switcher)
 
-    logger.info("Listening to RabbitMQ...")
+    logger.info(f"Listening to RabbitMQ... queue={rmq_task_queue}")
     channel.start_consuming()
     connection.close()
