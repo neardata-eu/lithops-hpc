@@ -128,10 +128,17 @@ class HpcBackend:
             cpus_per_task=runtime_config["cpus_worker"],
             # nodes=runtime_config["num_nodes"],
         )
+        if "gpus_worker" in runtime_config:
+            # slurm_cmd.add_arguments(gpus_per_task=runtime_config["gpus_worker"])
+            slurm_cmd.add_arguments(gres=f"gpu:{runtime_config["gpus_worker"]}")
+        if "extra_slurm_args" in runtime_config:
+            slurm_cmd.add_arguments(**runtime_config["extra_slurm_args"])
         slurm_cmd.add_cmd("export SRUN_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK}")
         slurm_job = slurm_cmd.sbatch(
             "srun", "-l", "python", entry_point, rabbit_url, runtime_task_queue, runtime_config["max_tasks_worker"]
         )
+        if logger.level == logging.DEBUG:
+            logger.debug(f"sbatch script:\n{slurm_cmd.script()}")
         assert slurm_job.wait(), "Lithops HPC runtime slurm job failed."
         time.sleep(10)  # Wait to ensure initializations
         if not slurm_job.is_running():

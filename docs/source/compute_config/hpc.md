@@ -70,6 +70,8 @@ It is required to run the HPC backend in conjunction with the localhost storage 
 | hpc   | runtimes.num_workers |     | yes | Number of Lithops workers to run for this runtime configuration. |
 | hpc   | runtimes.cpus_worker |     | yes | Number of CPUs per Lithops worker for this runtime configuration. |
 | hpc   | runtimes.cpus_task |  1  | no | Number CPUs per Lithops task (a function execution). It must be lower than `cpus_worker`, since it will define how many tasks can be fit concurrently on each worker. By default, workers take as many tasks as CPUs available. |
+| hpc   | runtimes.gpus_worker |     | no | If specified, Lithops will deploy this runtime asking for GPU resources. This should be set to the number of GPUs per worker and QOS should point to a partition with GPU-accelerated nodes. |
+| hpc   | runtimes.extra_slurm_args |     | no | Optionally pass arguments to the underlying Slurm job. This should contain a dictionary. |
 
 
 ## Test Lithops

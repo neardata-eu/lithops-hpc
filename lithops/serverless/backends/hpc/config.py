@@ -38,6 +38,8 @@ def load_config(config_data):
         assert "cpus_worker" in v, f"HPC runtime {k} must define 'cpus_worker'"
         v["max_tasks_worker"] = divmod(v["cpus_worker"], v["cpus_task"])[0] if "cpus_task" in v else v["cpus_worker"]
         assert v["max_tasks_worker"] > 0, "HPC runtime 'cpus_task' has to be lower than 'cpus_worker'"
+        if "extra_slurm_args" in v:
+            assert isinstance(v["extra_slurm_args"], dict), f"HPC runtime {k}, 'extra_slurm_args' must be a dictionary."
 
     assert "rabbitmq" in config_data and "amqp_url" in config_data["rabbitmq"], (
         "To use the HPC backend you must configure RabbitMQ."
