@@ -139,7 +139,8 @@ class HpcBackend:
         )
         if logger.level == logging.DEBUG:
             logger.debug(f"sbatch script:\n{slurm_cmd.script()}")
-        assert slurm_job.wait(), "Lithops HPC runtime slurm job failed."
+        while not slurm_job.wait(timeout=60):
+            self.connection.process_data_events()  # Avoid Rabbit to drop connection during long waits
         time.sleep(10)  # Wait to ensure initializations
         if not slurm_job.is_running():
             raise Exception("Slurm job failed. Check logs.")

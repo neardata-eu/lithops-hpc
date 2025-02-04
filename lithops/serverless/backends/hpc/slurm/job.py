@@ -28,12 +28,13 @@ class SlurmJob:
     def get_id(self):
         return self.job_id
 
-    def wait(self, status="RUNNING", sleep=10) -> bool:
+    def wait(self, status="RUNNING", sleep=10, timeout=0) -> bool:
         logger.debug(f"Checking status of slurm job: {self.job_id}")
 
         current_status = "start"
         cmd = f'squeue -h -j {self.job_id} -o "%T"'
-        while True:
+        start = time.time()
+        while timeout == 0 or time.time() - start < timeout:
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             assert result.returncode == 0, result.stderr
             current_status = result.stdout.strip()
@@ -42,7 +43,10 @@ class SlurmJob:
             logger.debug(f"Job {self.job_id} is: {current_status}")
             time.sleep(sleep)
 
-        logger.debug(f"Slurm job {self.job_id} is now: {current_status}")
+        if current_status == status:
+            logger.debug(f"Slurm job {self.job_id} is now: {current_status}")
+        else:
+            logger.debug(f"Slurm job {self.job_id} wait timeout.")
         return current_status == status
 
     def get_hostname(self):
