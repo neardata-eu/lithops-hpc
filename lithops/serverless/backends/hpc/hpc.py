@@ -130,7 +130,7 @@ class HpcBackend:
         )
         if "gpus_worker" in runtime_config:
             # slurm_cmd.add_arguments(gpus_per_task=runtime_config["gpus_worker"])
-            slurm_cmd.add_arguments(gres=f"gpu:{runtime_config["gpus_worker"]}")
+            slurm_cmd.add_arguments(gres=f"gpu:{runtime_config['gpus_worker']}")
         if "extra_slurm_args" in runtime_config:
             slurm_cmd.add_arguments(**runtime_config["extra_slurm_args"])
         slurm_cmd.add_cmd("export SRUN_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK}")
