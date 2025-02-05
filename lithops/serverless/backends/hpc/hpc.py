@@ -77,8 +77,12 @@ class HpcBackend:
         # py_version = utils.CURRENT_PY_VERSION.replace(".", "")
         # return f"default-hpc-runtime-v{py_version}"
 
-    def _get_runtime_rabbit_queue(self, runtime_name):
-        return f"{runtime_name}_task_queue"
+    def _get_rabbit_task_queue(self, runtime_name):
+        # return f"{runtime_name}_task_queue"
+        return runtime_name
+
+    def _get_rabbit_management_queue(self, runtime_name):
+        return f"{runtime_name}_manage"
 
     def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
         logger.debug("Building HPC runtime %s", runtime_name)
@@ -113,8 +117,9 @@ class HpcBackend:
         logger.info(f"Running slurm job for HPC runtime: {runtime_name}")
 
         rabbit_url = self.hpc_config["amqp_url"]
-        runtime_task_queue = runtime_config.get("rmq_queue", self._get_runtime_rabbit_queue(runtime_name))
-        self.channel.queue_declare(queue=runtime_name, durable=True)
+        runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime_name))
+        runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
+        self.channel.queue_declare(queue=runtime_mng_queue, durable=True)
         self.channel.queue_declare(queue=runtime_task_queue, durable=True)
 
         slurm_cmd = Slurm(
@@ -140,8 +145,8 @@ class HpcBackend:
             "-l",
             "python",
             entry_point,
-            runtime_name,
             rabbit_url,
+            runtime_mng_queue,
             runtime_task_queue,
             runtime_config["max_tasks_worker"],
         )
@@ -188,11 +193,12 @@ class HpcBackend:
             message = {"action": "stop", "payload": encoded_payload}
 
             runtime_config = self.hpc_config["runtimes"][runtime_name]
+            runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
             # Send message(s) to RabbitMQ
             for _ in range(runtime_config["num_workers"]):
                 self.channel.basic_publish(
                     exchange="",
-                    routing_key=runtime_name,
+                    routing_key=runtime_mng_queue,
                     body=json.dumps(message),
                     properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
                 )
@@ -218,9 +224,10 @@ class HpcBackend:
             runtime_config = self.hpc_config["runtimes"][runtime_name]
             self.delete_runtime(*runtime)
             # Delete rabbit queues
-            runtime_task_queue = runtime_config.get("rmq_queue", self._get_runtime_rabbit_queue(runtime[0]))
-            self.channel.queue_delete(queue=runtime_name)
-            self.channel.queue_delete(queue=runtime_name + RETURN_QUEUE_POSTFIX)
+            runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime[0]))
+            runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
+            self.channel.queue_delete(queue=runtime_mng_queue)
+            self.channel.queue_delete(queue=runtime_mng_queue + RETURN_QUEUE_POSTFIX)
             self.channel.queue_delete(queue=runtime_task_queue)
 
     def list_runtimes(self, runtime_name="all"):
@@ -275,7 +282,7 @@ class HpcBackend:
             message = {"action": "send_task", "payload": utils.dict_to_b64str(payload_edited)}
 
             runtime_config = self.hpc_config["runtimes"][runtime_name]
-            runtime_task_queue = runtime_config.get("rmq_queue", self._get_runtime_rabbit_queue(runtime_name))
+            runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime_name))
             self.channel.basic_publish(
                 exchange="",
                 routing_key=runtime_task_queue,
@@ -328,12 +335,13 @@ class HpcBackend:
         message = {"action": "get_metadata", "payload": encoded_payload}
 
         # Declare return queue
-        self.channel.queue_declare(queue=runtime_name + RETURN_QUEUE_POSTFIX, durable=True)
+        runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
+        self.channel.queue_declare(queue=runtime_mng_queue + RETURN_QUEUE_POSTFIX, durable=True)
 
         # Send message to RabbitMQ
         self.channel.basic_publish(
             exchange="",
-            routing_key=runtime_name,
+            routing_key=runtime_mng_queue,
             body=json.dumps(message),
             properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
         )
@@ -349,7 +357,7 @@ class HpcBackend:
             if elapsed_time > 600:  # 10 minutes
                 raise Exception("Unable to extract metadata from the runtime")
 
-            method_frame, properties, body = self.channel.basic_get(runtime_name + RETURN_QUEUE_POSTFIX)
+            method_frame, properties, body = self.channel.basic_get(runtime_mng_queue + RETURN_QUEUE_POSTFIX)
 
             if method_frame:
                 runtime_meta = json.loads(body)
