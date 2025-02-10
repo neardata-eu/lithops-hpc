@@ -1,0 +1,28 @@
+#
+# (C) Copyright BSC 2025
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+def load_config(config_data):
+    if "pfs" not in config_data or config_data["pfs"] is None:
+        config_data["pfs"] = {}
+
+    if "monitoring_interval" not in config_data["lithops"]:
+        config_data["lithops"]["monitoring_interval"] = 1
+
+    assert "storage_root" in config_data["pfs"], "'storage_root' is mandatory for the PFS backend"
+
+    if "storage_bucket" not in config_data["pfs"]:
+        config_data["pfs"]["storage_bucket"] = "storage"

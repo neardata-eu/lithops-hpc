@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright BSC 2025
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,34 +13,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-import os
-import io
 import glob
-import shutil
+import io
 import logging
-from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.constants import LITHOPS_TEMP_DIR
-from lithops.constants import STORAGE_CLI_MSG
+import os
+import shutil
 
+from lithops.constants import STORAGE_CLI_MSG
+from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
 
 
-class LocalhostStorageBackend:
+class PfsStorageBackend:
     """
-    A wrap-up around Localhost filesystem APIs.
+    A wrap-up around Parallel Filesystem APIs.
     """
 
-    def __init__(self, localhost_config):
-        logger.debug("Creating Localhost storage client")
-        self.localhost_config = localhost_config
+    def __init__(self, pfs_config):
+        logger.debug("Creating PFS storage client")
+        self.pfs_config = pfs_config
+        self.storage_root = pfs_config["storage_root"]
 
-        logger.info(STORAGE_CLI_MSG.format('Localhost storage'))
+        logger.info(STORAGE_CLI_MSG.format("PFS storage"))
+        logger.debug("Using storage root: {}".format(self.storage_root))
 
     def get_client(self):
         # Simulate boto3 client
-        class LocalhostBoto3Client():
+        class PfsBoto3Client:
             def __init__(self, backend):
                 self.backend = backend
 
@@ -49,7 +49,7 @@ class LocalhostStorageBackend:
 
             def get_object(self, Bucket, Key, **kwargs):
                 body = self.backend.get_object(Bucket, Key, stream=True, extra_get_args=kwargs)
-                return {'Body': body}
+                return {"Body": body}
 
             def list_objects(self, Bucket, Prefix=None, **kwargs):
                 return self.backend.list_objects(Bucket, Prefix)
@@ -57,25 +57,25 @@ class LocalhostStorageBackend:
             def list_objects_v2(self, Bucket, Prefix=None, **kwargs):
                 return self.backend.list_objects(Bucket, Prefix)
 
-        return LocalhostBoto3Client(self)
+        return PfsBoto3Client(self)
 
     def put_object(self, bucket_name, key, data):
         """
-        Put an object in localhost filesystem.
+        Put an object in the PFS storage.
         Override the object if the key already exists.
         :param key: key of the object.
         :param data: data of the object
         :type data: str/bytes
         :return: None
         """
-        data_type = type(data)
-        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        logger.debug("Putting object '{}' in bucket '{}'".format(key, bucket_name))
+        file_path = os.path.join(self.storage_root, bucket_name, key)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
+        data_type = type(data)
         if data_type is bytes:
             with open(file_path, "wb") as f:
                 f.write(data)
-        elif hasattr(data, 'read'):
+        elif hasattr(data, "read"):
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(data, f, 1024 * 1024)
         else:
@@ -84,29 +84,34 @@ class LocalhostStorageBackend:
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
-        Get object from localhost filesystem with a key.
+        Get object from the PFS storage with a key.
         Throws StorageNoSuchKeyError if the given key does not exist.
-        :param key: key of the object
-        :return: Data of the object
-        :rtype: str/bytes
+        :param key: key of the object.
+        :param stream: return a stream instead of the object content
+        :param extra_get_args: extra arguments
+        :return: object data
+        :rtype: bytes/stream
         """
-        buffer = None
-        try:
-            file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        logger.debug("Getting object '{}' from bucket '{}'".format(key, bucket_name))
+        file_path = os.path.join(self.storage_root, bucket_name, key)
+        if not os.path.exists(file_path):
+            raise StorageNoSuchKeyError(os.path.join(self.storage_root, bucket_name), key)
+        if "Range" in extra_get_args:
+            byte_range = extra_get_args["Range"].replace("bytes=", "")
+            first_byte, last_byte = map(int, byte_range.split("-"))
             with open(file_path, "rb") as f:
-                if 'Range' in extra_get_args:
-                    byte_range = extra_get_args['Range'].replace('bytes=', '')
-                    first_byte, last_byte = map(int, byte_range.split('-'))
-                    f.seek(first_byte)
-                    buffer = io.BytesIO(f.read(last_byte - first_byte + 1))
+                f.seek(first_byte)
+                buffer = io.BytesIO(f.read(last_byte - first_byte + 1))
+                if stream:
+                    return buffer
                 else:
-                    buffer = io.BytesIO(f.read())
+                    return buffer.getvalue()
+        else:
             if stream:
-                return buffer
+                return open(file_path, "rb")
             else:
-                return buffer.read()
-        except Exception:
-            raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), key)
+                with open(file_path, "rb") as f:
+                    return f.read()
 
     def upload_file(self, file_name, bucket, key=None, extra_args={}, config=None):
         """Upload a file
@@ -117,12 +122,11 @@ class LocalhostStorageBackend:
         :return: True if file was uploaded, else False
         """
         # If S3 key was not specified, use file_name
-        if key is None:
-            key = os.path.basename(file_name)
+        key = key or os.path.basename(file_name)
 
         # Upload the file
         try:
-            with open(file_name, 'rb') as in_file:
+            with open(file_name, "rb") as in_file:
                 self.put_object(bucket, key, in_file)
         except Exception as e:
             logging.error(e)
@@ -138,15 +142,14 @@ class LocalhostStorageBackend:
         :return: True if file was downloaded, else False
         """
         # If file_name was not specified, use S3 key
-        if file_name is None:
-            file_name = key
+        file_name = file_name or key
 
         # Download the file
         try:
             dirname = os.path.dirname(file_name)
             if dirname and not os.path.exists(dirname):
                 os.makedirs(dirname)
-            with open(file_name, 'wb') as out:
+            with open(file_name, "wb") as out:
                 data_stream = self.get_object(bucket, key, stream=True)
                 shutil.copyfileobj(data_stream, out)
         except Exception as e:
@@ -156,19 +159,17 @@ class LocalhostStorageBackend:
 
     def head_object(self, bucket_name, key):
         """
-        Head object from local filesystem with a key.
+        Head object from Parallel filesystem with a key.
         Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
         :return: metadata of the object
         """
-        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        file_path = os.path.join(self.storage_root, bucket_name, key)
         if os.path.isfile(file_path):
-            # Imitate the COS/S3 response
-            return {
-                'content-length': str(os.stat(file_path).st_size)
-            }
+            # Imitate the S3 response
+            return {"content-length": str(os.stat(file_path).st_size)}
 
-        raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), key)
+        raise StorageNoSuchKeyError(os.path.join(self.storage_root, bucket_name), key)
 
     def delete_object(self, bucket_name, key):
         """
@@ -176,7 +177,7 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+        base_dir = os.path.join(self.storage_root, bucket_name, "")
         file_path = os.path.join(base_dir, key)
         try:
             if os.path.exists(file_path):
@@ -187,7 +188,7 @@ class LocalhostStorageBackend:
             while parent_dir.startswith(base_dir) and len(parent_dir) > len(base_dir):
                 try:
                     os.rmdir(parent_dir)
-                    parent_dir = os.path.abspath(os.path.join(parent_dir, '..'))
+                    parent_dir = os.path.abspath(os.path.join(parent_dir, ".."))
                 except OSError:
                     break
         except Exception:
@@ -199,23 +200,23 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key_list: list of keys
         """
-        dirs = set()
+        # dirs = set()
         for key in key_list:
-            file_dir = os.path.dirname(key)
-            dirs.add(file_dir)
+            # file_dir = os.path.dirname(key)
+            # dirs.add(file_dir)
             # dirs.add("/".join(file_dir.split("/", 2)[:2]))
             self.delete_object(bucket_name, key)
 
     def head_bucket(self, bucket_name):
         """
-        Head localhost dir with a name.
+        Head PFS dir with a name.
         Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
         """
-        if os.path.isdir(os.path.join(LITHOPS_TEMP_DIR, bucket_name)):
-            return {'ResponseMetadata': {'HTTPStatusCode': 200}}
+        if os.path.isdir(os.path.join(self.storage_root, bucket_name)):
+            return {"ResponseMetadata": {"HTTPStatusCode": 200}}
         else:
-            raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
+            raise StorageNoSuchKeyError(os.path.join(self.storage_root, bucket_name), "")
 
     def list_objects(self, bucket_name, prefix=None, match_pattern=None):
         """
@@ -226,12 +227,12 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         obj_list = []
-        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+        base_dir = os.path.join(self.storage_root, bucket_name, "")
 
         for key in self.list_keys(bucket_name, prefix):
             file_name = os.path.join(base_dir, key)
             size = os.stat(file_name).st_size
-            obj_list.append({'Key': key, 'Size': size})
+            obj_list.append({"Key": key, "Size": size})
 
         return obj_list
 
@@ -244,22 +245,22 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         key_list = []
-        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+        base_dir = os.path.join(self.storage_root, bucket_name, "")
 
         if prefix:
-            if prefix.endswith('/'):
-                roots = [os.path.join(base_dir, prefix, '**')]
+            if prefix.endswith("/"):
+                roots = [os.path.join(base_dir, prefix, "**")]
             else:
                 roots = [
-                    os.path.join(base_dir, prefix + '*'),
-                    os.path.join(base_dir, prefix + '*', '**'),
+                    os.path.join(base_dir, prefix + "*"),
+                    os.path.join(base_dir, prefix + "*", "**"),
                 ]
         else:
-            roots = [os.path.join(base_dir, '**')]
+            roots = [os.path.join(base_dir, "**")]
 
         for root in roots:
             for file_name in glob.glob(root, recursive=True):
                 if os.path.isfile(file_name):
-                    key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
+                    key_list.append(file_name.replace(base_dir, "").replace("\\", "/"))
 
         return key_list
