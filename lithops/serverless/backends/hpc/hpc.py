@@ -14,18 +14,22 @@
 # limitations under the License.
 #
 import hashlib
+import json
 import logging
 import os
-import json
 import time
+
 import pika
+import pika.exceptions
+import pika.spec
 
 from lithops import utils
-from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import COMPUTE_CLI_MSG, RUNTIMES_PREFIX
+from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.version import __version__
 
-from .slurm import Slurm, SlurmPattern as SP
+from .slurm import Slurm
+from .slurm import SlurmPattern as SP
 
 logger = logging.getLogger(__name__)
 
@@ -53,16 +57,49 @@ class HpcBackend:
 
         # Init RabbitMQ
         self.amqp_url = self.hpc_config["amqp_url"]
-        params = pika.URLParameters(self.amqp_url)
-        self.connection = pika.BlockingConnection(params)
-        self.channel = self.connection.channel()
+        self.__params = pika.URLParameters(self.amqp_url)
+        self.__connection = None
+        self.__channel = None
+        self.__connect_rmq()
 
         msg = COMPUTE_CLI_MSG.format("HPC")
         logger.info(f"{msg}")
 
     def __del__(self):
         if hasattr(self, "connection"):
-            self.connection.close()
+            self.__connection.close()
+
+    def __connect_rmq(self):
+        if not self.__connection or self.__connection.is_closed:
+            self.__connection = pika.BlockingConnection(self.__params)
+            self.__channel = self.__connection.channel()
+
+    def __declare_rmq_queues(self, *queues):
+        for queue in queues:
+            try:
+                self.__channel.queue_declare(queue=queue, durable=True)
+            except pika.exceptions.ConnectionClosed:
+                logger.warning("Connection to RabbitMQ closed. Reconnecting...")
+                self.__connect_rmq()
+                self.__channel.queue_declare(queue=queue, durable=True)
+
+    def __publish_to_rabbit(self, queue, message):
+        try:
+            self.__channel.basic_publish(
+                exchange="",
+                routing_key=queue,
+                body=json.dumps(message),
+                properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
+            )
+        except pika.exceptions.ConnectionClosed:
+            logger.warning("Connection to RabbitMQ closed. Reconnecting...")
+            self.__connect_rmq()
+            self.__channel.basic_publish(
+                exchange="",
+                routing_key=queue,
+                body=json.dumps(message),
+                properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
+            )
 
     def _format_runtime_name(self, runtime_name, version=__version__):
         name = f"{runtime_name}-{version}"
@@ -119,8 +156,7 @@ class HpcBackend:
         rabbit_url = self.hpc_config["amqp_url"]
         runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime_name))
         runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
-        self.channel.queue_declare(queue=runtime_mng_queue, durable=True)
-        self.channel.queue_declare(queue=runtime_task_queue, durable=True)
+        self.__declare_rmq_queues(runtime_mng_queue, runtime_task_queue)
 
         slurm_cmd = Slurm(
             job_name=f"lithops_hpc_workers-{runtime_name}",
@@ -153,7 +189,7 @@ class HpcBackend:
         if logger.level == logging.DEBUG:
             logger.debug(f"sbatch script:\n{slurm_cmd.script()}")
         while not slurm_job.wait(timeout=60):
-            self.connection.process_data_events()  # Avoid Rabbit to drop connection during long waits
+            self.__connection.process_data_events()  # Avoid Rabbit to drop connection during long waits
         time.sleep(10)  # Wait to ensure initializations
         if not slurm_job.is_running():
             raise Exception("Slurm job failed. Check logs.")
@@ -196,12 +232,7 @@ class HpcBackend:
             runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
             # Send message(s) to RabbitMQ
             for _ in range(runtime_config["num_workers"]):
-                self.channel.basic_publish(
-                    exchange="",
-                    routing_key=runtime_mng_queue,
-                    body=json.dumps(message),
-                    properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
-                )
+                self.__publish_to_rabbit(runtime_mng_queue, message)
 
             if slurm_job.wait("", sleep=5):
                 logger.info(f"HPC runtime {runtime_name} stopped.")
@@ -226,9 +257,9 @@ class HpcBackend:
             # Delete rabbit queues
             runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime[0]))
             runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
-            self.channel.queue_delete(queue=runtime_mng_queue)
-            self.channel.queue_delete(queue=runtime_mng_queue + RETURN_QUEUE_POSTFIX)
-            self.channel.queue_delete(queue=runtime_task_queue)
+            self.__channel.queue_delete(queue=runtime_mng_queue)
+            self.__channel.queue_delete(queue=runtime_mng_queue + RETURN_QUEUE_POSTFIX)
+            self.__channel.queue_delete(queue=runtime_task_queue)
 
     def list_runtimes(self, runtime_name="all"):
         """
@@ -283,12 +314,7 @@ class HpcBackend:
 
             runtime_config = self.hpc_config["runtimes"][runtime_name]
             runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime_name))
-            self.channel.basic_publish(
-                exchange="",
-                routing_key=runtime_task_queue,
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
-            )
+            self.__publish_to_rabbit(runtime_task_queue, message)
         job_key = job_payload["job_key"]
         activation_id = f"lithops-{job_key.lower()}"
         return activation_id
@@ -336,15 +362,10 @@ class HpcBackend:
 
         # Declare return queue
         runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
-        self.channel.queue_declare(queue=runtime_mng_queue + RETURN_QUEUE_POSTFIX, durable=True)
+        self.__declare_rmq_queues(runtime_mng_queue + RETURN_QUEUE_POSTFIX)
 
         # Send message to RabbitMQ
-        self.channel.basic_publish(
-            exchange="",
-            routing_key=runtime_mng_queue,
-            body=json.dumps(message),
-            properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
-        )
+        self.__publish_to_rabbit(runtime_mng_queue, message)
 
         logger.debug("Waiting for runtime metadata")
 
@@ -357,7 +378,7 @@ class HpcBackend:
             if elapsed_time > 600:  # 10 minutes
                 raise Exception("Unable to extract metadata from the runtime")
 
-            method_frame, properties, body = self.channel.basic_get(runtime_mng_queue + RETURN_QUEUE_POSTFIX)
+            method_frame, properties, body = self.__channel.basic_get(runtime_mng_queue + RETURN_QUEUE_POSTFIX)
 
             if method_frame:
                 runtime_meta = json.loads(body)

@@ -25,6 +25,7 @@ from threading import Thread
 import pika
 import pika.adapters.blocking_connection
 import pika.channel
+import pika.spec
 
 from lithops.serverless.backends.hpc.hpc import RETURN_QUEUE_POSTFIX
 from lithops.utils import b64str_to_dict, dict_to_b64str, setup_lithops_logger
