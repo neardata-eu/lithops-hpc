@@ -6,6 +6,7 @@ Compute Backends
    :maxdepth: 1
 
    compute_config/localhost.md
+   compute_config/hpc.md
 
 **Serverless (FaaS) Backends:**
 

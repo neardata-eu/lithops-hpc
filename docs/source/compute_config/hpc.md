@@ -1,8 +1,8 @@
 # HPC
 
-Lithops with *HPC* as a serverless compute backend.
+Lithops with *HPC* as a compute backend.
 
-This backend manages slurm jobs as a backbone for running Lithops tasks. Run it from the supercomputer cluster, with access to slurm commands and the shred FS space.
+This backend manages slurm jobs as a backbone for running Lithops tasks. Run it from the supercomputer cluster, with access to slurm commands and the shared FS space.
 
 **Note:** This backend requires a RabbitMQ server for communication and coordination between Lithops components. It must be accessible by workers and clients.
 
@@ -56,7 +56,7 @@ Runtimes are not automatically removed. To do so, use the Lithops CLI `lithops r
 
 You can check the slurm job logs in the `slurm_lithops_workers` directory created in the client working directory (assuming it is in a shared PFS like GPFS or Lustre).
 
-It is required to run the HPC backend in conjunction with the localhost storage backend, setting the `storage_bucket` to a path in the PFS shared space, available to all cluster nodes.
+It is required to run the HPC backend in conjunction with the PFS storage backend, setting the `storage_root` to a path in the PFS shared space, available to all cluster nodes.
 
 ## Summary of Configuration Keys for HPC
 
@@ -72,6 +72,7 @@ It is required to run the HPC backend in conjunction with the localhost storage 
 | hpc   | runtimes.cpus_task |  1  | no | Number CPUs per Lithops task (a function execution). It must be lower than `cpus_worker`, since it will define how many tasks can be fit concurrently on each worker. By default, workers take as many tasks as CPUs available. |
 | hpc   | runtimes.gpus_worker |     | no | If specified, Lithops will deploy this runtime asking for GPU resources. This should be set to the number of GPUs per worker and QOS should point to a partition with GPU-accelerated nodes. |
 | hpc   | runtimes.extra_slurm_args |     | no | Optionally pass arguments to the underlying Slurm job. This should contain a dictionary. |
+| hpc   | runtimes.rmq_queue |     | no | Use a custom RabbitMQ queue for function invocations. By default, tasks are sent to a queue with the runtime name. You can set this to the name of another runtime to have them share the queue and split the workload. Or set all runtimes to a custom queue name so all of them split the workload. |
 
 
 ## Test Lithops

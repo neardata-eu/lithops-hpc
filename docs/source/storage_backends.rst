@@ -6,6 +6,7 @@ Storage Backends
    :maxdepth: 1
 
    compute_config/localhost.md
+   storage_config/pfs.md
 
 **Object Storage:**
 
