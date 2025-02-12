@@ -105,7 +105,8 @@ class HpcBackend:
         name = f"{runtime_name}-{version}"
         name_hash = hashlib.sha1(name.encode()).hexdigest()[:10]
 
-        return f"hpc-runtime-{version.replace('.', '')}-{name_hash}"
+        py_version = utils.CURRENT_PY_VERSION.replace(".", "")
+        return f"hpc-runtime-{version.replace('.', '')}-{py_version}-{name_hash}"
 
     def _get_default_runtime_name(self):
         """Generates the default runtime name"""

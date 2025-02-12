@@ -36,7 +36,7 @@ class PfsStorageBackend:
         self.storage_root = pfs_config["storage_root"]
 
         logger.info(STORAGE_CLI_MSG.format("PFS storage"))
-        logger.debug("Using storage root: {}".format(self.storage_root))
+        logger.debug("Using storage root: '{}'".format(self.storage_root))
 
     def get_client(self):
         # Simulate boto3 client
