@@ -139,6 +139,9 @@ if __name__ == "__main__":
     task_concurrency = int(sys.argv[4])
     setup_lithops_logger("INFO")
 
+    python_version = sys.version_info
+    python_version = str(python_version[0]) + "." + str(python_version[1])
+    logger.info(f"Lithops v{__version__} - Python version: {python_version}")
     logger.info(f"Starting HPC Lithops worker node...  max_tasks={task_concurrency}")
     # Shared variable to track running jobs / max concurrent tasks
     running_jobs = Value("i", task_concurrency)
