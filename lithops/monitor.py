@@ -258,24 +258,26 @@ class RabbitmqMonitor(Monitor):
                 self._generate_tokens(call_status)
                 self._tag_future_as_ready(call_status)
 
-            if self._all_ready() or not self.should_run:
-                ch.stop_consuming()
-                ch.close()
-                self._print_status_log()
-                logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
+            # if self._all_ready() or not self.should_run:
+            #     ch.stop_consuming()
+            #     ch.close()
+            #     self._print_status_log()
+            #     logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
         channel.basic_consume(self.queue, callback, auto_ack=True)
         threading.Thread(target=channel.start_consuming, daemon=True).start()
 
-        while not self._all_ready():
+        while self.should_run and not self._all_ready():
             # Format call_ids running, pending and done
             prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
             self._future_timeout_checker(self.futures)
             time.sleep(SLEEP_TIME)
             log_time += SLEEP_TIME
 
-            if not self.should_run:
-                break
+        channel.stop_consuming()
+        channel.close()
+        self._print_status_log()
+        logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
 
 class StorageMonitor(Monitor):
