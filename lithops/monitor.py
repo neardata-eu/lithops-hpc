@@ -189,7 +189,6 @@ class RabbitmqMonitor(Monitor):
         """
         connection = pika.BlockingConnection(self.pikaparams)
         channel = connection.channel()
-        channel.stop_consuming()
         channel.queue_delete(queue=self.queue)
         channel.close()
         connection.close()
@@ -200,7 +199,6 @@ class RabbitmqMonitor(Monitor):
         """
         self.should_run = False
         self._delete_resources()
-        self.join()
 
     def _tag_future_as_running(self, call_status):
         """
@@ -243,9 +241,7 @@ class RabbitmqMonitor(Monitor):
                 self.token_bucket_q.put('#')
 
     def run(self):
-        logger.debug(f'ExecutorID {self.executor_id} |  Starting RabbitMQ job monitor')
-        prevoius_log = None
-        log_time = 0
+        logger.debug(f'ExecutorID {self.executor_id} | Starting RabbitMQ job monitor')
         SLEEP_TIME = 2
 
         channel = self.connection.channel()
@@ -260,24 +256,24 @@ class RabbitmqMonitor(Monitor):
                 self._generate_tokens(call_status)
                 self._tag_future_as_ready(call_status)
 
-            # if self._all_ready() or not self.should_run:
-            #     ch.stop_consuming()
-            #     ch.close()
-            #     self._print_status_log()
-            #     logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
+            if self._all_ready() or not self.should_run:
+                ch.stop_consuming()
+                ch.close()
+
+        def housekeeping():
+            prevoius_log = None
+            log_time = 0
+            while self.should_run and not self._all_ready():
+                # Format call_ids running, pending and done
+                prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
+                self._future_timeout_checker(self.futures)
+                time.sleep(SLEEP_TIME)
+                log_time += SLEEP_TIME
+
+        threading.Thread(target=housekeeping, daemon=True).start()
 
         channel.basic_consume(self.queue, callback, auto_ack=True)
-        threading.Thread(target=channel.start_consuming, daemon=True).start()
-
-        while self.should_run and not self._all_ready():
-            # Format call_ids running, pending and done
-            prevoius_log, log_time = self._print_status_log(previous_log=prevoius_log, log_time=log_time)
-            self._future_timeout_checker(self.futures)
-            time.sleep(SLEEP_TIME)
-            log_time += SLEEP_TIME
-
-        channel.stop_consuming()
-        channel.close()
+        channel.start_consuming()
         self._print_status_log()
         logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
