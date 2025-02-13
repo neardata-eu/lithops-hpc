@@ -189,6 +189,7 @@ class RabbitmqMonitor(Monitor):
         """
         connection = pika.BlockingConnection(self.pikaparams)
         channel = connection.channel()
+        channel.stop_consuming()
         channel.queue_delete(queue=self.queue)
         channel.close()
         connection.close()
@@ -199,6 +200,7 @@ class RabbitmqMonitor(Monitor):
         """
         self.should_run = False
         self._delete_resources()
+        self.join()
 
     def _tag_future_as_running(self, call_status):
         """
