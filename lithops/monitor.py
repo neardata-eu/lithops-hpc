@@ -169,6 +169,7 @@ class RabbitmqMonitor(Monitor):
 
         self.rabbit_amqp_url = config.get('amqp_url')
         self.queue = f'lithops-{self.executor_id}'
+        self.tag = None
         self._create_resources()
 
     def _create_resources(self):
@@ -189,6 +190,8 @@ class RabbitmqMonitor(Monitor):
         """
         connection = pika.BlockingConnection(self.pikaparams)
         channel = connection.channel()
+        if self.tag:
+            channel.basic_cancel(self.tag)
         channel.queue_delete(queue=self.queue)
         channel.close()
         connection.close()
@@ -260,7 +263,7 @@ class RabbitmqMonitor(Monitor):
                 ch.stop_consuming()
                 ch.close()
 
-        def housekeeping():
+        def manage_timeouts():
             prevoius_log = None
             log_time = 0
             while self.should_run and not self._all_ready():
@@ -270,10 +273,11 @@ class RabbitmqMonitor(Monitor):
                 time.sleep(SLEEP_TIME)
                 log_time += SLEEP_TIME
 
-        threading.Thread(target=housekeeping, daemon=True).start()
+        threading.Thread(target=manage_timeouts, daemon=True).start()
 
-        channel.basic_consume(self.queue, callback, auto_ack=True)
+        self.tag = channel.basic_consume(self.queue, callback, auto_ack=True)
         channel.start_consuming()
+        self.tag = None
         self._print_status_log()
         logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
