@@ -15,7 +15,7 @@
 #
 
 DEFAULT_CONFIG_KEYS = {
-    "runtime_timeout": 600,  # Default: 10 minutes
+    "runtime_timeout": float("inf"),  # This backend ignores runtime timeout, set to infinite by default
     "runtime_memory": None,  # Memory is ignored in this backend
     "worker_processes": 100,  # Determines how many messages are sent to rabbit per job
     "max_workers": 100,  # this sets the max number of workers per map, the backend ignores it for now
