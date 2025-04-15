@@ -19,6 +19,7 @@ DEFAULT_CONFIG_KEYS = {
     "runtime_memory": None,  # Memory is ignored in this backend
     "worker_processes": 100,  # Determines how many messages are sent to rabbit per job
     "max_workers": 100,  # this sets the max number of workers per map, the backend ignores it for now
+    "max_time": "03:00:00"  # Default max time for a runtime job
 }
 
 
@@ -40,6 +41,7 @@ def load_config(config_data):
         assert v["max_tasks_worker"] > 0, "HPC runtime 'cpus_task' has to be lower than 'cpus_worker'"
         if "extra_slurm_args" in v:
             assert isinstance(v["extra_slurm_args"], dict), f"HPC runtime {k}, 'extra_slurm_args' must be a dictionary."
+        v["max_time"] = v.get("max_time", config_data["hpc"]["max_time"])
 
     assert "rabbitmq" in config_data and "amqp_url" in config_data["rabbitmq"], (
         "To use the HPC backend you must configure RabbitMQ."

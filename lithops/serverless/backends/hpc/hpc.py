@@ -168,6 +168,7 @@ class HpcBackend:
             ntasks=runtime_config["num_workers"],
             cpus_per_task=runtime_config["cpus_worker"],
             # nodes=runtime_config["num_nodes"],
+            time=runtime_config["max_time"],
         )
         if "gpus_worker" in runtime_config:
             # slurm_cmd.add_arguments(gpus_per_task=runtime_config["gpus_worker"])
