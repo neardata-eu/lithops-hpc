@@ -30,6 +30,7 @@ from lithops.version import __version__
 
 from .slurm import Slurm
 from .slurm import SlurmPattern as SP
+from .gekkofs import start_script
 
 logger = logging.getLogger(__name__)
 
@@ -175,9 +176,42 @@ class HpcBackend:
         slurm_cmd.add_cmd("export SRUN_CPUS_PER_TASK=${SLURM_CPUS_PER_TASK}")
 
         entry_point = os.path.join(os.path.dirname(__file__), "entry_point.py")
-        slurm_job = slurm_cmd.sbatch(
-            "srun",
-            "-l",
+
+        command = ["srun", "-l"]
+
+        # GEKKOFS
+        if "gkfs" in runtime_config["mode"]:
+            logger.info("Running HPC runtime with GKFS")
+            gekko_sh = os.path.join(os.path.dirname(__file__), "gkfs_start.sh")
+            with open(gekko_sh, "w") as f:
+                f.write(start_script)
+            slurm_cmd.add_cmd('export GKFS_BASE="/gpfs/${HOME}/gekkofs_base"')
+            slurm_cmd.add_cmd('export GEKKODEPS="${GKFS_BASE}/iodeps"')
+            slurm_cmd.add_cmd("export GKFS_LOG_LEVEL=0")
+            slurm_cmd.add_cmd("export LIBGKFS_LOG=none")
+            slurm_cmd.add_cmd('export GKFS="${GEKKODEPS}/lib64/libgkfs_intercept.so"')
+            slurm_cmd.add_cmd('export LIBGKFS_HOSTS_FILE="${HOME}/test/gkfs_hosts.txt"')
+            slurm_cmd.add_cmd('echo "Removing ${LIBGKFS_HOSTS_FILE}"')
+            slurm_cmd.add_cmd('rm "${LIBGKFS_HOSTS_FILE}"')
+            slurm_cmd.add_cmd(
+                "srun -c ${SLURM_CPUS_ON_NODE}",
+                "-n ${SLURM_NNODES} -N ${SLURM_NNODES}",
+                "--mem=0 --overlap -overcommit --oversubscribe --export='ALL'",
+                "/bin/bash",
+                gekko_sh,
+                "&",
+            )
+            slurm_cmd.add_cmd('while [[ ! -f "${LIBGKFS_HOSTS_FILE}" ]]; do sleep 1; done')
+            slurm_cmd.add_cmd('while [[ $(wc -l < "$LIBGKFS_HOSTS_FILE") -lt ${SLURM_NNODES} ]]; do sleep 1; done')
+            command.append(
+                "--mem=0",
+                "--oversubscribe",
+                "--overlap",
+                "--overcommit",
+                '--export="ALL",LD_PRELOAD=${GKFS}',
+            )
+
+        command.append(
             "python",
             entry_point,
             rabbit_url,
@@ -185,6 +219,7 @@ class HpcBackend:
             runtime_task_queue,
             runtime_config["max_tasks_worker"],
         )
+        slurm_job = slurm_cmd.sbatch(*command)
         if logger.level == logging.DEBUG:
             logger.debug(f"sbatch script:\n{slurm_cmd.script()}")
         slurm_job.wait()
