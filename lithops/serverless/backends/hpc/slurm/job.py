@@ -58,8 +58,10 @@ class SlurmJob:
         return hostname
 
     def is_running(self):
-        cmd = f'squeue -h -j {self.job_id} -o "%T"'
+        # cmd = f'squeue -h -j {self.job_id} -o "%T"'
+        cmd = f'sacct -n -j {self.job_id} -o State | head -n 1'
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        # TODO: fix exception when job is not found
         assert result.returncode == 0, result.stderr
         current_status = result.stdout.strip()
         return current_status == "RUNNING"

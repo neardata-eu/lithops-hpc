@@ -60,7 +60,6 @@ class HpcBackend:
         self.__params = pika.URLParameters(self.amqp_url)
         self.__connection = None
         self.__channel = None
-        self.__connect_rmq()
 
         msg = COMPUTE_CLI_MSG.format("HPC")
         logger.info(f"{msg}")
@@ -69,37 +68,35 @@ class HpcBackend:
         if hasattr(self, "connection"):
             self.__connection.close()
 
-    def __connect_rmq(self):
+    def __get_rmq_channel(self):
+        if self.__connection:
+            try:
+                self.__connection.process_data_events()
+            except pika.exceptions.AMQPConnectionError:
+                logger.debug("RabbitMQ connection closed")
+                self.__connection = None
+                self.__channel = None
         if not self.__connection or self.__connection.is_closed:
+            logger.debug("Connecting to RabbitMQ")
             self.__connection = pika.BlockingConnection(self.__params)
             self.__channel = self.__connection.channel()
+        return self.__channel
 
     def __declare_rmq_queues(self, *queues):
         for queue in queues:
-            try:
-                self.__channel.queue_declare(queue=queue, durable=True)
-            except pika.exceptions.ConnectionClosed:
-                logger.warning("Connection to RabbitMQ closed. Reconnecting...")
-                self.__connect_rmq()
-                self.__channel.queue_declare(queue=queue, durable=True)
+            self.__get_rmq_channel().queue_declare(queue=queue, durable=True)
+
+    def __delete_rmq_queues(self, *queues):
+        for queue in queues:
+            self.__get_rmq_channel().queue_delete(queue=queue)
 
     def __publish_to_rabbit(self, queue, message):
-        try:
-            self.__channel.basic_publish(
-                exchange="",
-                routing_key=queue,
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
-            )
-        except pika.exceptions.ConnectionClosed:
-            logger.warning("Connection to RabbitMQ closed. Reconnecting...")
-            self.__connect_rmq()
-            self.__channel.basic_publish(
-                exchange="",
-                routing_key=queue,
-                body=json.dumps(message),
-                properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
-            )
+        self.__get_rmq_channel().basic_publish(
+            exchange="",
+            routing_key=queue,
+            body=json.dumps(message),
+            properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
+        )
 
     def _format_runtime_name(self, runtime_name, version=__version__):
         name = f"{runtime_name}-{version}"
@@ -190,8 +187,9 @@ class HpcBackend:
         )
         if logger.level == logging.DEBUG:
             logger.debug(f"sbatch script:\n{slurm_cmd.script()}")
-        while not slurm_job.wait(timeout=60):
-            self.__connection.process_data_events()  # Avoid Rabbit to drop connection during long waits
+        slurm_job.wait()
+        # while not slurm_job.wait(timeout=60):
+        #     self.__connection.process_data_events()  # Avoid Rabbit to drop connection during long waits
         time.sleep(10)  # Wait to ensure initializations
         if not slurm_job.is_running():
             raise Exception("Slurm job failed. Check logs.")
@@ -259,9 +257,7 @@ class HpcBackend:
             # Delete rabbit queues
             runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime[0]))
             runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
-            self.__channel.queue_delete(queue=runtime_mng_queue)
-            self.__channel.queue_delete(queue=runtime_mng_queue + RETURN_QUEUE_POSTFIX)
-            self.__channel.queue_delete(queue=runtime_task_queue)
+            self.__delete_rmq_queues(runtime_task_queue, runtime_mng_queue, runtime_mng_queue + RETURN_QUEUE_POSTFIX)
 
     def list_runtimes(self, runtime_name="all"):
         """
@@ -281,9 +277,7 @@ class HpcBackend:
             runtimes = [(k, 0, __version__) for k in deployed]
             return runtimes
         if runtime_name in deployed:
-            return [
-                (runtime_name, 0, __version__),
-            ]
+            return [(runtime_name, 0, __version__)]
         else:
             return []
 
@@ -380,8 +374,9 @@ class HpcBackend:
             if elapsed_time > 600:  # 10 minutes
                 raise Exception("Unable to extract metadata from the runtime")
 
-            method_frame, properties, body = self.__channel.basic_get(runtime_mng_queue + RETURN_QUEUE_POSTFIX)
-
+            method_frame, properties, body = self.__get_rmq_channel().basic_get(
+                runtime_mng_queue + RETURN_QUEUE_POSTFIX
+            )
             if method_frame:
                 runtime_meta = json.loads(body)
                 break
