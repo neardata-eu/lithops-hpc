@@ -203,21 +203,25 @@ class HpcBackend:
             )
             slurm_cmd.add_cmd('while [[ ! -f "${LIBGKFS_HOSTS_FILE}" ]]; do sleep 1; done')
             slurm_cmd.add_cmd('while [[ $(wc -l < "$LIBGKFS_HOSTS_FILE") -lt ${SLURM_NNODES} ]]; do sleep 1; done')
-            command.append(
-                "--mem=0",
-                "--oversubscribe",
-                "--overlap",
-                "--overcommit",
-                '--export="ALL",LD_PRELOAD=${GKFS}',
+            command.extend(
+                [
+                    "--mem=0",
+                    "--oversubscribe",
+                    "--overlap",
+                    "--overcommit",
+                    '--export="ALL",LD_PRELOAD=${GKFS}',
+                ]
             )
 
-        command.append(
-            "python",
-            entry_point,
-            rabbit_url,
-            runtime_mng_queue,
-            runtime_task_queue,
-            runtime_config["max_tasks_worker"],
+        command.extend(
+            [
+                "python",
+                entry_point,
+                rabbit_url,
+                runtime_mng_queue,
+                runtime_task_queue,
+                runtime_config["max_tasks_worker"],
+            ]
         )
         slurm_job = slurm_cmd.sbatch(*command)
         if logger.level == logging.DEBUG:
