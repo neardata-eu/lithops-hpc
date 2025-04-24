@@ -180,7 +180,7 @@ class HpcBackend:
         command = ["srun", "-l"]
 
         # GEKKOFS
-        if "gkfs" in runtime_config["mode"]:
+        if "mode" in runtime_config and "gkfs" in runtime_config["mode"]:
             logger.info("Running HPC runtime with GKFS")
             gekko_sh = os.path.join(os.path.dirname(__file__), "gkfs_start.sh")
             with open(gekko_sh, "w") as f:
@@ -255,7 +255,7 @@ class HpcBackend:
         key = self.get_runtime_key(runtime_name, runtime_memory, version)
         slurm_job_id = self._get_runtime_job_id(key)
         if not slurm_job_id:
-            logger.debug("Runtime is not deployed.")
+            logger.info("Runtime is not deployed.")
             return
 
         slurm_job = Slurm.job_from_id(slurm_job_id)
@@ -289,12 +289,12 @@ class HpcBackend:
         logger.info("Cleaning HPC runtimes")
 
         # Delete all deployed runtimes
-        for runtime in self.list_runtimes():
-            runtime_name = runtime[0]
+        for runtime_name in list(self.hpc_config["runtimes"].keys()):
             runtime_config = self.hpc_config["runtimes"][runtime_name]
-            self.delete_runtime(*runtime)
+            self.delete_runtime(runtime_name, 0, __version__)
             # Delete rabbit queues
-            runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime[0]))
+            logger.info(f"Deleting RabbitMQ queues for runtime {runtime_name}")
+            runtime_task_queue = runtime_config.get("rmq_queue", self._get_rabbit_task_queue(runtime_name))
             runtime_mng_queue = self._get_rabbit_management_queue(runtime_name)
             self.__delete_rmq_queues(runtime_task_queue, runtime_mng_queue, runtime_mng_queue + RETURN_QUEUE_POSTFIX)
 
