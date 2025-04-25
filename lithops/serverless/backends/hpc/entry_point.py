@@ -16,10 +16,11 @@
 import json
 import logging
 import os
+import signal
 import sys
 import time
 import uuid
-from multiprocessing import Value
+from multiprocessing import Value, Lock
 from threading import Thread
 
 import pika
@@ -62,6 +63,11 @@ def run_job_k8s_rabbitmq(payload):
         running_jobs.value += len(payload["call_ids"])
 
     logger.info("Finishing HPC execution")
+    with lock:
+        try:
+            running_messages.remove(payload)
+        except ValueError:
+            logger.warning(f"Task {payload['job_key']} - {payload['call_ids']} finished but already sent back to the queue.")
 
 
 def manage_work_queue(ch, method, payload):
@@ -88,6 +94,7 @@ def manage_work_queue(ch, method, payload):
         message_to_send["call_ids"] = message_to_send["call_ids"][running_jobs.value:]
         message_to_send["data_byte_ranges"] = message_to_send["data_byte_ranges"][running_jobs.value:]
         message_to_send = {"action": "send_task", "payload": dict_to_b64str(message_to_send)}
+        message["total_calls"] = running_jobs.value
         message["call_ids"] = message["call_ids"][: running_jobs.value]
         message["data_byte_ranges"] = message["data_byte_ranges"][: running_jobs.value]
 
@@ -104,6 +111,8 @@ def manage_work_queue(ch, method, payload):
     with running_jobs.get_lock():
         running_jobs.value -= processes_to_start
 
+    with lock:
+        running_messages.append(message)
     Thread(target=run_job_k8s_rabbitmq, args=([message])).start()
 
     ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -122,7 +131,6 @@ def actions_switcher(ch, method, properties, body):
     if action == "get_metadata":
         extract_runtime_meta(ch)
         ch.basic_ack(delivery_tag=method.delivery_tag)
-
     elif action == "send_task":
         manage_work_queue(ch, method, payload)
     elif action == "stop":
@@ -142,9 +150,11 @@ if __name__ == "__main__":
     python_version = sys.version_info
     python_version = str(python_version[0]) + "." + str(python_version[1])
     logger.info(f"Lithops v{__version__} - Python version: {python_version}")
-    logger.info(f"Starting HPC Lithops worker node...  max_tasks={task_concurrency}")
+    logger.info(f"Starting HPC Lithops worker node... max_tasks={task_concurrency}")
     # Shared variable to track running jobs / max concurrent tasks
     running_jobs = Value("i", task_concurrency)
+    lock = Lock()
+    running_messages = []
 
     # Connect to rabbitmq
     params = pika.URLParameters(rabbit_url)
@@ -158,6 +168,40 @@ if __name__ == "__main__":
     rt_consumer_tag = channel.basic_consume(queue=rmq_mng_queue, on_message_callback=actions_switcher)
     tk_consumer_tag = channel.basic_consume(queue=rmq_task_queue, on_message_callback=actions_switcher)
 
+    # Handle SIGTERM signal
+    def signal_handler(sig, frame):
+        logger.info(f"Signal {sig} received. Stopping worker...")
+        channel.basic_cancel(rt_consumer_tag)
+        channel.basic_cancel(tk_consumer_tag)
+
+    # signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGUSR1, signal_handler)
+
     logger.info(f"Listening to RabbitMQ... task queue={rmq_task_queue}")
     channel.start_consuming()
-    connection.close()
+    logger.info("Worker stopped consuming.")
+    if len(running_messages) == 0:
+        logger.info("No jobs in progress. Worker stopped.")
+        connection.close()
+        sys.exit(0)
+    else:
+        logger.info("Waiting for jobs to finish (20 s)...")
+        time.sleep(20)  # Give 20 seconds to finish the jobs
+        # If the worker is stopped, send all the messages back to the queue
+        with lock:
+            logger.info("Jobs in progress after 20 s to be sent back to the queue:")
+            for message in running_messages:
+                logger.info(f"  - {message['job_key']} - {message['call_ids']}")
+                message_to_send = {"action": "send_task", "payload": dict_to_b64str(message)}
+                channel.basic_publish(
+                    exchange="",
+                    routing_key=rmq_task_queue,
+                    body=json.dumps(message_to_send),
+                    properties=pika.BasicProperties(delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE),
+                )
+            running_messages.clear()
+
+        connection.close()
+        logger.info("Jobs sent back to the queue. Killing any remaining processes.")
+        os.kill(os.getpid(), 9)
