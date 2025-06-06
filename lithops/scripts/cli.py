@@ -55,7 +55,8 @@ from lithops.constants import (
     STANDALONE,
     LOGS_DIR,
     FN_LOG_FILE,
-    STANDALONE_BACKENDS
+    STANDALONE_BACKENDS,
+    SERVERLESS_BACKENDS
 )
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
@@ -63,10 +64,14 @@ from lithops.storage.utils import clean_bucket
 from lithops.standalone import StandaloneHandler
 from lithops.localhost import LocalhostHandler
 
+import paramiko
+import signal
+from getpass import getpass
 
 logger = logging.getLogger(__name__)
 
 
+            
 def set_config_ow(backend, storage=None, runtime_name=None, region=None):
     config_ow = {'lithops': {}, 'backend': {}}
 
@@ -85,12 +90,307 @@ def set_config_ow(backend, storage=None, runtime_name=None, region=None):
 
     return config_ow
 
+ 
+# /---------------------------------------------------------------------------/
+#
+# lithops hpc
+#
+# /---------------------------------------------------------------------------/
+def hpc_credentials(config, backend, storage, debug):
+  config = load_yaml_config(config) if config else None
+  log_level = logging.INFO if not debug else logging.DEBUG
+  setup_lithops_logger(log_level)
 
+  config_ow = set_config_ow(backend=backend, storage=storage)
+  config = default_config(config_data=config, config_overwrite=config_ow)
+  storage_config = extract_storage_config(config)
+  internal_storage = InternalStorage(storage_config)
+
+  mode = config['lithops']['mode']
+  backend = config['lithops']['backend']
+
+  if mode != SERVERLESS or backend !='hpc':
+    raise Exception('lithops attach method is only available for SERVERLESS and HPC backend. '
+                        f'Please use "lithops hpc_connect -c <path to yaml config file> -b hpc"')
+                        
+  logger.info('Starting HPC connection ...')
+  if "host" in config['cluster_hpc']: 
+    host=config['cluster_hpc']['host'] 
+  else:
+    raise Exception('host is not defined')
+  
+  if "username" in config['cluster_hpc']:
+    username=config['cluster_hpc']['username']
+  else:
+    raise Exception('username is not defined')
+    
+  port=config['cluster_hpc']['port'] if "port" in config['cluster_hpc'] else 22
+  key_path=config['cluster_hpc']['key_path'] if 'key_path' in config['cluster_hpc'] else "~/.ssh/id_rsa"
+  
+  return host, port, username, key_path, storage_config
+  
+def ssh_connect_key(host, port, username, key_path):
+  client = paramiko.SSHClient()
+  client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+  key_path = os.path.expanduser(key_path)
+
+  try:
+    if not os.path.exists(key_path):
+      raise FileNotFoundError(f"Private key file not found: {key_path}")
+
+    print("> Attempting key-based authentication...")
+    passphrase = getpass("SSH key passphrase (leave blank if none): ")
+
+    if passphrase.strip() == "":
+      private_key = paramiko.RSAKey.from_private_key_file(key_path)
+    else:
+      private_key = paramiko.RSAKey.from_private_key_file(key_path, password=passphrase)
+
+    client.connect(
+      hostname=host,
+      port=port,
+      username=username,
+      pkey=private_key
+    )
+    print("> Connected with private key.")
+
+  except Exception as e:
+    print(f"X SSH connection failed: {e}")
+
+  finally:
+    print("> SSH connection ready.")
+    
+  return client
+
+def start_ssh_tunnel(host, username, local_port, remote_socket_path, key_path):
+    key_path = os.path.expanduser(key_path)
+    if not os.path.exists(key_path):
+        raise FileNotFoundError(f"SSH key file not found: {key_path}")
+
+    ssh_command = [
+        "ssh",
+        "-i", key_path,
+        "-N",  # Do not execute remote commands
+        "-L", f"{local_port}:{remote_socket_path}",
+        f"{username}@{host}"
+    ]
+
+    print(f"> Starting SSH tunnel in background:\n{' '.join(ssh_command)}")
+
+    # Run the process in the background
+    process = sp.Popen(
+        ssh_command,
+        stdout=sp.DEVNULL,
+        stderr=sp.DEVNULL
+    )
+
+    print(f"> SSH tunnel started in background. PID: {process.pid}")
+    return process.pid
+
+def start_rbmq_forwarding(config, backend, storage, debug):
+  #Get HPC-credentialas
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  port=5672
+  #remote_socket_path="/gpfs/home/bsc/bsc098254/sockets_dir/socket.sock"
+  remote_socket_path=f"{storage['pfs']['storage_root']}/{storage['pfs']['storage_bucket']}/sockets_dir/socket.sock"
+  
+  try:
+    pid = start_ssh_tunnel(host,username,port,remote_socket_path,key_path)
+  except Exception as e:
+    print(f"X Error: {e}")
+       
+def mount_directory(config, backend, storage, debug):
+  #Get HPC-credentialas
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  mount_dir=storage['pfs']['storage_root']
+  
+  if not os.path.exists(mount_dir):
+    print(f"> Directory does not exist. Please create the directory manually using:\n")
+    print(f"> mkdir -m 777 {mount_dir}")
+    os.makedirs(mount_dir, exist_ok=True)
+
+  # Run SSHFS mount
+  sshfs_cmd = [
+        "sshfs",
+        "-o", "workaround=rename",
+        f"{username}@{host}:{mount_dir}",
+        mount_dir
+  ]
+  print(f"> Mounting via sshfs: {' '.join(sshfs_cmd)}")
+  sp.run(sshfs_cmd, check=True)
+  print("> SSHFS mount successful.")
+
+def check_and_clear_port(port=5672):
+  try:
+    result = sp.check_output(['lsof', '-t', f'-i:{port}'], text=True)
+    pids = [int(pid) for pid in result.strip().split('\n') if pid]
+
+    if pids:
+      print(f"> Port {port} is in use by PID(s): {pids}")
+      for pid in pids:
+        try:
+          os.kill(pid, signal.SIGKILL)
+          print(f"> Killed process with PID: {pid}")
+        except ProcessLookupError:
+          print(f"X PID {pid} not found.")
+        except PermissionError:
+          print(f"X No permission to kill PID {pid}")
+    else:
+      print(f"!!! Port {port} appears in use, but no PIDs found.")
+
+  except sp.CalledProcessError:
+    print(f"> Port {port} is free.")
+  
+
+@click.group('hpc')
+@click.pass_context
+def hpc(ctx):
+    pass
+
+@hpc.command('mount_sshfs')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def mount_sshfs(config, backend, storage, debug):
+  """ mount HPC storage directory """
+  mount_directory(config, backend, storage, debug)
+  
+@hpc.command('unmount_sshfs')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def unmount_sshfs(config, backend, storage, debug):
+  """ unmount HPC storage directory """
+  #Get HPC-credentialas
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  mount_dir=storage['pfs']['storage_root']
+  sp.run(["fusermount", "-u", mount_dir], check=True)
+  print("> SSHFS Unmount successful.")
+            
+@hpc.command('start_rabbitmq_master')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def start_rabbitmq_master(config, backend, storage, debug):
+  """ start Rabbitmq server """
+  #Open HPC-connection
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  client=ssh_connect_key(host, port, username, key_path)  
+  
+  # Set command
+  cmd='~/lithops-hpc-examples/.rabbitmq/start_rabbitmq_master.sh '
+  stdin, stdout, stderr = client.exec_command(cmd)
+  print("LITHOPS:\n", stdout.read().decode().strip())
+  
+  #Close HPC-connection  
+  client.close()
+  logger.info('SSH connection closed.')
+
+@hpc.command('forward_rabbitmq_master')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def forward_rabbitmq_master(config, backend, storage, debug):
+  """ forwarding Rabbitmq server """
+  start_rbmq_forwarding(config, backend, storage, debug)
+
+@hpc.command('stop_forward_rabbitmq_master')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def stop_forward_rabbitmq_master(config, backend, storage, debug):
+  """ stop forwarding Rabbitmq server """
+  check_and_clear_port(port=5672)
+  print("> Rabbitmq port closed")
+
+@hpc.command('connect')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def connect(config, backend, storage, debug):
+  """ start connection with HPC cluster """
+  mount_directory(config, backend, storage, debug)
+  start_rbmq_forwarding(config, backend, storage, debug)
+  
+@hpc.command('disconnect')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def disconnect(config, backend, storage, debug):
+  """ stop connection with HPC cluster """
+  #Get HPC-credentialas
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  mount_dir=storage['pfs']['storage_root']
+
+  #Close RabbitMQ forwarding
+  check_and_clear_port(port=5672)
+  print("> Rabbitmq port closed")
+  
+  #Unmount SSHFS
+  sp.run(["fusermount", "-u", mount_dir], check=True)
+  print("> SSHFS Unmount successful.")
+  
+  logger.info('Stop HPC connection ...')
+  
+@hpc.command('runtime_deploy')
+@click.argument('name', required=True)
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def runtime_deploy(config, backend, storage, debug, name):
+  """ deploy a runtime """
+  #Open HPC-connection
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  client=ssh_connect_key(host, port, username, key_path)  
+  
+  # Set command
+  cmd=f'lithops runtime deploy {name}'
+  stdin, stdout, stderr = client.exec_command(cmd)
+  print("LITHOPS:\n", stderr.read().decode().strip())
+  
+  #Close HPC-connection  
+  client.close()
+  logger.info('SSH connection closed.')
+
+@hpc.command('runtime_list')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def runtime_list(config, backend, storage, debug):
+  """ list all deployed runtime. """
+  #Open HPC-connection
+  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+  client=ssh_connect_key(host, port, username, key_path)  
+  
+  # Set command
+  cmd='lithops runtime list'
+  stdin, stdout, stderr = client.exec_command(cmd)
+  print("> LITHOPS:\n", stdout.read().decode().strip())
+  #print("X LITHOPS:\n", stderr.read().decode().strip())
+
+  #Close HPC-connection  
+  client.close()
+  logger.info('SSH connection closed.')
+
+# /---------------------------------------------------------------------------/
+#
+# lithops cli
+#
+# /---------------------------------------------------------------------------/
 @click.group('lithops_cli')
 @click.version_option()
 def lithops_cli():
     pass
-
 
 @lithops_cli.command('clean')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
@@ -457,6 +757,50 @@ def get_logs(job_key):
 def runtime(ctx):
     pass
 
+@runtime.command('scaleup')
+@click.argument('name', required=True)
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--memory', default=None, help='memory used by the runtime', type=int)
+@click.option('--timeout', default=None, help='runtime timeout', type=int)
+@click.option('--workers', default=None, help='total new workers', type=int)
+@click.option('--time', default=None, help='Temporal runtime timeout', type=int)
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def scaleup(name, storage, backend, memory, timeout, workers, time,config, debug):
+  """ scaleup workers for a HPC-serverless runtime. """
+  setup_lithops_logger(logging.DEBUG)
+
+  verify_runtime_name(name)
+
+  config = load_yaml_config(config) if config else None
+  config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
+  config = default_config(config_data=config, config_overwrite=config_ow)
+  backend = config['lithops']['backend']
+
+  if config['lithops']['mode'] != SERVERLESS or backend !='hpc':
+    raise Exception('"lithops runtime deploy" command is only available for serverless-HPC backends')
+
+  config['hpc']['runtimes'][name]['rmq_queue']=name
+  config['hpc']['runtimes'][name]['num_workers']=workers
+  config['hpc']['runtimes'][name]['max_time']=time
+
+  storage_config = extract_storage_config(config)
+  internal_storage = InternalStorage(storage_config)
+  compute_config = extract_serverless_config(config)
+  compute_handler = ServerlessHandler(compute_config, internal_storage)
+
+  runtime_info = compute_handler.get_runtime_info()
+  runtime_name = runtime_info['runtime_name']
+  runtime_memory = memory or runtime_info['runtime_memory']
+  runtime_timeout = timeout or runtime_info['runtime_timeout']
+  runtime_key = compute_handler.get_runtime_key(runtime_name, runtime_memory, __version__)
+ 
+  runtime_meta = compute_handler.deploy_runtime(runtime_name, runtime_memory, runtime_timeout)
+  runtime_meta['runtime_timeout'] = runtime_timeout
+  internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+
+  logger.info('Temporal runtime deployed')
 
 @runtime.command('build', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument('name', required=False)
@@ -921,6 +1265,7 @@ lithops_cli.add_command(job)
 lithops_cli.add_command(worker)
 lithops_cli.add_command(logs)
 lithops_cli.add_command(storage)
+lithops_cli.add_command(hpc)
 
 if __name__ == '__main__':
     lithops_cli()
