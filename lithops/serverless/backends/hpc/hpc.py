@@ -194,27 +194,23 @@ class HpcBackend:
             slurm_cmd.add_cmd('export LIBGKFS_HOSTS_FILE="${HOME}/test/gkfs_hosts.txt"')
             slurm_cmd.add_cmd('echo "Removing ${LIBGKFS_HOSTS_FILE}"')
             slurm_cmd.add_cmd('rm "${LIBGKFS_HOSTS_FILE}"')
-            slurm_cmd.add_cmd(
-                "srun -c ${SLURM_CPUS_ON_NODE}",
+            slurm_job = slurm_cmd.sbatch(
+                "srun -l -c ${SLURM_CPUS_ON_NODE}",
                 "-n ${SLURM_NNODES} -N ${SLURM_NNODES}",
-                "--mem=0 --overlap -overcommit --oversubscribe --export='ALL'",
+                "--exclusive --export='ALL'",
                 "/bin/bash",
                 gekko_sh,
-                "&",
+                entry_point,
+                rabbit_url,
+                runtime_mng_queue,
+                runtime_task_queue,
+                runtime_config["max_tasks_worker"],
             )
-            slurm_cmd.add_cmd('while [[ ! -f "${LIBGKFS_HOSTS_FILE}" ]]; do sleep 1; done')
-            slurm_cmd.add_cmd('while [[ $(wc -l < "$LIBGKFS_HOSTS_FILE") -lt ${SLURM_NNODES} ]]; do sleep 1; done')
-            command.extend(
-                [
-                    "--mem=0",
-                    "--oversubscribe",
-                    "--overlap",
-                    "--overcommit",
-                    '--export="ALL",LD_PRELOAD=${GKFS}',
-                ]
-            )
-
-        command.extend(
+        
+        
+        else:
+          command = ["srun", "-l"]
+          command.extend(
             [
                 "python",
                 entry_point,
@@ -222,9 +218,9 @@ class HpcBackend:
                 runtime_mng_queue,
                 runtime_task_queue,
                 runtime_config["max_tasks_worker"],
-            ]
-        )
-        slurm_job = slurm_cmd.sbatch(*command)
+            ])
+          slurm_job = slurm_cmd.sbatch(*command)
+          
         if logger.level == logging.DEBUG:
             logger.debug(f"sbatch script:\n{slurm_cmd.script()}")
         slurm_job.wait()

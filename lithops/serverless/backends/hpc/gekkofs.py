@@ -57,21 +57,18 @@ execute_command() {
         return 1
     fi
 }
-#echo "Removing $LIBGKFS_HOSTS_FILE"
-#rm $LIBGKFS_HOSTS_FILE
+
 echo "Executing GKFS_DAEMON"
 CMD1="${GKFS_DAEMON} --mountdir=${GKFS_MNT:?} --rootdir=${GKFS_ROOT:?} $COMM -l ib0 " # --proxy-protocol ofi+verbs --proxy-listen lo"
-#if [ $SLURM_LOCALID -lt 0 ]; then
-#   echo "Executing  GKFS_DAEMON on $SLURM_LOCALID/$SLURM_NODEID nodes "
-#   execute_command $CMD1
-#fi
-execute_command $CMD1 #-s node_$SLURM_LOCALID  #Creates an additional directory within the rootdir, allowing multiple daemons on one node
-#while [[ ! -f "${LIBGKFS_HOSTS_FILE}" ]]; do sleep 1; done
-#while [[ $(wc -l < "$LIBGKFS_HOSTS_FILE") -lt ${SLURM_NNODES} ]]; do sleep 1; done
+execute_command $CMD1 & #-s node_$SLURM_LOCALID  #Creates an additional directory within the rootdir, allowing multiple daemons on one node
+while [[ ! -f "${LIBGKFS_HOSTS_FILE}" ]]; do sleep 1; done
+while [[ $(wc -l < "$LIBGKFS_HOSTS_FILE") -lt ${SLURM_NNODES} ]]; do sleep 1; done
 
-#sleep 10
+echo "Executing  Lithops workers"
+for (( i=1; i<"$SLURM_CPUS_ON_NODE"; i++ ))
+do
+  LD_PRELOAD=${GKFS} python $1 $2 $3 $4 $5 &
+done
+LD_PRELOAD=${GKFS} python $1 $2 $3 $4 $5 
 
-#echo "Executing  Lithops workers"
-#LD_PRELOAD=${GKFS} python $1 $2 $3 $4 $5
-#while true; do sleep 1; done
 """
