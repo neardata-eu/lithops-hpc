@@ -186,7 +186,7 @@ class HpcBackend:
             gekko_sh = os.path.join(os.path.dirname(__file__), "gkfs_start.sh")
             with open(gekko_sh, "w") as f:
                 f.write(start_script)
-            slurm_cmd.add_cmd('export GKFS_BASE="/gpfs/${HOME}/gekkofs_base"')
+            slurm_cmd.add_cmd('export GKFS_BASE="${HOME}/gekkofs_base"')
             slurm_cmd.add_cmd('export GEKKODEPS="${GKFS_BASE}/iodeps"')
             slurm_cmd.add_cmd("export GKFS_LOG_LEVEL=0")
             slurm_cmd.add_cmd("export LIBGKFS_LOG=none")

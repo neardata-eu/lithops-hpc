@@ -12,8 +12,8 @@ export FI_UNIVERSE_SIZE=500
 #echo FI_UNIVERSE_SIZE $FI_UNIVERSE_SIZE
 
 # GekkoFS mount point (can be any directory)
-export GKFS_BASE=/gpfs/${HOME}/gekkofs_base
-export GKFS_MNT=/gpfs/${HOME}/mnt
+export GKFS_BASE=${HOME}/gekkofs_base
+export GKFS_MNT=${HOME}/mnt
 export GEKKODEPS=${GKFS_BASE}/iodeps
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${GEKKODEPS}/lib64:${GEKKODEPS}/lib
 export PATH=$PATH:${GEKKODEPS}/iodeps/bin
