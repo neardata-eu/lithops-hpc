@@ -1,0 +1,10 @@
+name: base-lithops
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.9
+  - pip
+  - pyyaml
+  - pip:
+      - git+https://github.com/danielBCN/dataplug@filesystem
+      - lithops[plotting] @ git+https://github.com/neardata-eu/lithops-hpc.git@hpc    

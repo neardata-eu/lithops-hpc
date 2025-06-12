@@ -1,0 +1,31 @@
+BootStrap: docker
+From: rabbitmq:4.0.5
+
+%post
+
+
+%environment
+    export RABBITMQ_USER=admin1234
+    export RABBITMQ_PASSWORD=1234
+    export RABBITMQ_VHOST=testadmin
+    export RABBITMQ_PID_FILE=/var/lib/rabbitmq/mnesia/rabbitmq
+
+%runscript
+    # Ensure the nodename doesn't change, e.g. if docker restarts.
+    # Important because rabbitmq stores data per node name (or 'IP')
+    # echo 'NODENAME=rabbit@localhost' > /etc/rabbitmq/rabbitmq-env.conf
+
+    # Create Rabbitmq user
+    (rabbitmqctl wait --timeout 60 $RABBITMQ_PID_FILE ; \
+    rabbitmqctl add_user $RABBITMQ_USER $RABBITMQ_PASSWORD 2>/dev/null ; \
+    rabbitmqctl add_vhost $RABBITMQ_VHOST ; \
+    rabbitmqctl set_user_tags $RABBITMQ_USER administrator ; \
+    rabbitmqctl set_permissions -p $RABBITMQ_VHOST $RABBITMQ_USER  ".*" ".*" ".*" ; \
+    # rabbitmqctl set_policy ha-all "" '{"ha-mode":"all","ha-sync-mode":"automatic"}' ; \
+    echo "*** User '$RABBITMQ_USER' with password '$RABBITMQ_PASSWORD' created. ***") &
+
+    # enable Prometheus
+    rabbitmq-plugins enable rabbitmq_prometheus
+    
+    # $@ is used to pass arguments to the rabbitmq-server command.
+    rabbitmq-server "$@"
