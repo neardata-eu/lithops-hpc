@@ -1,0 +1,31 @@
+#*******************************************
+#Basic configuration for LITHOPS_CONFIG_FILE
+#*******************************************
+lithops:
+  backend: hpc
+  storage: pfs
+  execution_timeout: 1800
+  log_level: DEBUG
+  #monitoring: rabbitmq
+
+cluster_hpc:
+  host: <ip address>
+  username: <user>
+  key_path: ~/.ssh/id_rsa
+
+pfs:
+  storage_root: </path/to/PFS/dir/>
+  storage_bucket: storage
+
+rabbitmq:
+  amqp_url: amqp://admin1234:1234@localhost:5672/testadmin # <AMQP_URL>
+
+hpc:
+  worker_processes: 112  # Tasks per rabbit message
+  runtime: hpc-default
+  runtimes:
+    hpc-default:
+      account: <hpc_account>
+      qos: <hpc_qos>
+      num_workers: 20
+      cpus_worker: 1

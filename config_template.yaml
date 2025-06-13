@@ -1,0 +1,62 @@
+#*******************************************
+#HPC Configuration File
+#Full configuration for LITHOPS_CONFIG_FILE
+#https://lithops-cloud.github.io/docs/source/configuration.html
+#*******************************************
+
+###Backends
+#The lithops_config file contains a basic configuration to use the Lithops HPC backend. 
+#First, you must select the backends:
+lithops:
+  backend: hpc
+  storage: pfs
+
+###Optionally, you may set a custom function execution timeout and logging level:
+  execution_timeout: <timeout>
+  log_level: <DEBUG/INFO>
+
+###Storage
+#You must also configure the storage backend:
+pfs:
+  storage_root: </path/to/PFS/dir/>
+  storage_bucket: <bucket_name>
+
+#The storage root sets the location where all Lithops storage operations will work from.
+#It should point to a mounted PFS location accessible by client and backend nodes and it must be given as an **absolute path**.
+#Emulated storage buckets will become directories within the root.
+#The configured storage bucket is where Lithops internal files will reside (e.g., job status and intermediate data), and also the default location for objects through the Lithops Storage API.
+#For instance, you may use the `.storage` dir within this repo.
+
+### Cluster_hpc
+#You must also configure the credential to connect to the HPC server:
+cluster_hpc:
+  host: <ip address>
+  username: <user>
+  key_path: <private key>
+ 
+### HPC backend
+#You must configure at least one runtime to use the HPC backend.
+hpc:
+  worker_processes: <size of the RabbitMQ message>
+  runtime: <name>
+  runtimes:
+    <name>:
+      account: <hpc_account>
+      qos: <hpc_qos>
+      mode: <gkfs>
+      num_workers: <Total workers>
+      cpus_worker: <CPUs per worker>
+      gpus_worker: <GPUs per worker>
+      cpus_task: <CPUs per task>
+      max_time: <maximum run time>
+      rmq_queue: <aux runtime name>
+
+#The worker_processes key only sets the size of the RabbitMQ invocation message. It is best set as a multiple of the number of tasks that fit a worker. It means that, when configured to 112, if you run a Lithops map with 200 tasks (function invocations), two messages will be sent to RabbitMQ: one with 112 tasks and one with 88.
+#The `runtime` key is optional, by default set to `"default"`. It is used to designate which of the runtimes defined in the `runtimes` key will be used by default. If set to `"default"`, the first one is used.
+
+#The `runtimes` key should contain one or more Lithops workers slurm job definitions as a collection of dictionaries. The key of each dictionary (e.g., `hpc-default`) sets the runtime name. For each runtime, you must set the slurm user (`account`) and queue (`qos`), the number of Lithops workers to run (`num_workers`), and how many CPUs each worker will have (`cpus_worker`). Slurm will run each worker as a task with the specified CPU and calculate how many cluster nodes it needs. You may also set `cpus_task` to configure how much CPU to allocate for each Lithops task (and thus how many tasks fit concurrently on each worker), which by default is 1 to run as many tasks per worker as CPUs available in the worker.
+
+#gkfs mode. GekkoFS is a file system capable of aggregating the local I/O capacity and performance of each compute node in a HPC cluster to produce a high-performance storage space that can be accessed in a distributed manner.
+ 
+#Optionally, you may also set `max_time` for each runtime to define the maximum run time for the slurm job, 3 hours by default.
+#Also, you may set `rmq_queue` to change the task queue name for each runtime. This allows two or more runtimes to share a task queue and split work seamlessly. By default task queues take the runtime name, so in this example, you could define a second runtime `hpc2` and set its `rmq_queue` to `hpc-default` to share it with the first one.
