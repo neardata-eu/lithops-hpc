@@ -26,11 +26,13 @@ export RABBITMQ_HOME=$LITHOPS_HPC_HOME/rabbitmq/
 #### 4.Add environment variables to bashrc file
 ```bash
 cd lithops-hpc
-echo 'export LITHOPS_HPC_HOME=$(pwd)' >> ~/.bashrc
-echo 'export RABBITMQ_HOME=$LITHOPS_HPC_HOME/rabbitmq/' >> ~/.bashrc
-echo 'export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_config' >> ~/.bashrc
-echo 'export HPC_QOS=<slurm_queue>' >> ~/.bashrc
-echo 'export HPC_USER=<slurm_user>' >> ~/.bashrc
+cat <<EOF >> ~/.bashrc
+export LITHOPS_HPC_HOME=$(pwd)
+export RABBITMQ_HOME=$LITHOPS_HPC_HOME/rabbitmq/
+export LITHOPS_CONFIG_FILE=$LITHOPS_HPC_HOME/lithops_config
+export HPC_QOS=<slurm_queue>
+export HPC_USER=<slurm_user>
+EOF
 source ~/.bashrc
 ```
 
