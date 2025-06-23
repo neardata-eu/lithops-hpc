@@ -31,7 +31,7 @@ cd $BASE/gekkofs/scripts
 ./gkfs_dep.sh ${GEKKODEPS} ${GEKKODEPS}
 ```
 #### 3. Ensure the chunk size configured in GKFS
-Modify the constexpr auto chunksize = 524288; // in bytes (e.g., 524288 == 512KB)
+Modify the constexpr auto chunksize = 524288; // in bytes (e.g., 524288 == 512KB, 134217728 == 128MB)
 ```bash 
 vim $BASE/gekkofs/include/config.hpp
 ```
@@ -49,7 +49,7 @@ export GKFS_BASE="${HOME}/gekkofs_base"
 ```
 
 ## Enable GKFS in LITHOPS_CONFIG_FILE
-Set the mode parameter to gkfs in the hpc section LITHOPS_CONFIG_FILE. It should looks like  
+Set the mode parameter to gkfs in the hpc section of the LITHOPS_CONFIG_FILE. It should look like this:
 ```yaml
 hpc:
   worker_processes: <size of the RabbitMQ message>
@@ -111,7 +111,7 @@ export COMM="-P ofi+verbs"
 ```bash
 cd lithops-hpc
 conda activate base-lithops
-cd $LITHOPS_HPC_HOME/examples/sleep 
+cd $LITHOPS_HPC_HOME/examples/os_bmk 
 mkdir -p plots
-LD_PRELOAD=${GKFS} python sleep.py
+LD_PRELOAD=${GKFS} python os_benchmark.py run -b hpc -s pfs --mb_per_file=512 --bucket_name=$GKFS_MNT --outdir=plots --number=100 --read_times 1 --name gkfs_100tasks_1times
 ```
