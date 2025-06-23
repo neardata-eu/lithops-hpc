@@ -1,5 +1,5 @@
 # Lithops-HPC and GekkoFS 
-
+This version can only run directly on the HPC cluster; Lithops-HPC functions are not available in GKFS mode.
 ## Installation of GekkoFS in MN5
 #### 1. Obtain the gkfs code: clone the sources and set the ENV variables
 ```bash
@@ -62,7 +62,7 @@ hpc:
 ```
 ## Deploy runtime
 ```bash
-lithops hpc runtime_deploy <runtime_name>
+lithops runtime deploy <runtime_name>
 ```
 
 ## Usage
