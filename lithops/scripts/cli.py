@@ -67,6 +67,8 @@ from lithops.localhost import LocalhostHandler
 import paramiko
 import signal
 from getpass import getpass
+import pika
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +178,7 @@ def start_ssh_tunnel(host, username, local_port, remote_socket_path, key_path):
         f"{username}@{host}"
     ]
 
-    print(f"> Starting SSH tunnel in background:\n{' '.join(ssh_command)}")
+    #print(f"> Starting SSH tunnel in background:\n{' '.join(ssh_command)}")
 
     # Run the process in the background
     process = sp.Popen(
@@ -241,73 +243,74 @@ def check_and_clear_port(port=5672):
 
   except sp.CalledProcessError:
     print(f"> Port {port} is free.")
-  
+
+def check_rabbitmq_connection(amqp_url):
+    try:
+        # Parse the AMQP URL
+        parsed = urlparse(amqp_url)
+
+        credentials = pika.PlainCredentials(parsed.username, parsed.password)
+        parameters = pika.ConnectionParameters(
+            host=parsed.hostname,
+            port=parsed.port or 5672,
+            virtual_host=parsed.path[1:] or '/',
+            credentials=credentials
+        )
+
+        connection = pika.BlockingConnection(parameters)
+        if connection.is_open:
+            connection.close()
+            return 1
+    except Exception:
+        pass
+    return 0
+
 
 @click.group('hpc')
 @click.pass_context
 def hpc(ctx):
     pass
 
-@hpc.command('mount_sshfs')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def mount_sshfs(config, backend, storage, debug):
-  """ mount HPC storage directory """
-  mount_directory(config, backend, storage, debug)
+# @hpc.command('mount_sshfs')
+# @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+# @click.option('--backend', '-b', default=None, help='compute backend')
+# @click.option('--storage', '-s', default=None, help='storage backend')
+# @click.option('--debug', '-d', is_flag=True, help='debug mode')
+# def mount_sshfs(config, backend, storage, debug):
+#   """ mount HPC storage directory """
+#   mount_directory(config, backend, storage, debug)
   
-@hpc.command('unmount_sshfs')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def unmount_sshfs(config, backend, storage, debug):
-  """ unmount HPC storage directory """
-  #Get HPC-credentialas
-  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
-  mount_dir=storage['pfs']['storage_root']
-  sp.run(["fusermount", "-u", mount_dir], check=True)
-  print("> SSHFS Unmount successful.")
+# @hpc.command('unmount_sshfs')
+# @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+# @click.option('--backend', '-b', default=None, help='compute backend')
+# @click.option('--storage', '-s', default=None, help='storage backend')
+# @click.option('--debug', '-d', is_flag=True, help='debug mode')
+# def unmount_sshfs(config, backend, storage, debug):
+#   """ unmount HPC storage directory """
+#   #Get HPC-credentialas
+#   host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
+#   mount_dir=storage['pfs']['storage_root']
+#   sp.run(["fusermount", "-u", mount_dir], check=True)
+#   print("> SSHFS Unmount successful.")
             
-@hpc.command('start_rabbitmq_master')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def start_rabbitmq_master(config, backend, storage, debug):
-  """ start Rabbitmq server """
-  #Open HPC-connection
-  host, port, username, key_path, storage=hpc_credentials(config, backend, storage, debug)
-  client=ssh_connect_key(host, port, username, key_path)  
-  
-  # Set command
-  cmd='~/lithops-hpc-examples/.rabbitmq/start_rabbitmq_master.sh '
-  stdin, stdout, stderr = client.exec_command(cmd)
-  print("LITHOPS:\n", stdout.read().decode().strip())
-  
-  #Close HPC-connection  
-  client.close()
-  logger.info('SSH connection closed.')
+# @hpc.command('forward_rabbitmq_master')
+# @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+# @click.option('--backend', '-b', default=None, help='compute backend')
+# @click.option('--storage', '-s', default=None, help='storage backend')
+# @click.option('--debug', '-d', is_flag=True, help='debug mode')
+# def forward_rabbitmq_master(config, backend, storage, debug):
+#   """ forwarding Rabbitmq server """
+#   start_rbmq_forwarding(config, backend, storage, debug)
 
-@hpc.command('forward_rabbitmq_master')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def forward_rabbitmq_master(config, backend, storage, debug):
-  """ forwarding Rabbitmq server """
-  start_rbmq_forwarding(config, backend, storage, debug)
-
-@hpc.command('stop_forward_rabbitmq_master')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def stop_forward_rabbitmq_master(config, backend, storage, debug):
-  """ stop forwarding Rabbitmq server """
-  check_and_clear_port(port=5672)
-  print("> Rabbitmq port closed")
+# @hpc.command('stop_forward_rabbitmq_master')
+# @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+# @click.option('--backend', '-b', default=None, help='compute backend')
+# @click.option('--storage', '-s', default=None, help='storage backend')
+# @click.option('--debug', '-d', is_flag=True, help='debug mode')
+# def stop_forward_rabbitmq_master(config, backend, storage, debug):
+#   """ stop forwarding Rabbitmq server """
+#   check_and_clear_port(port=5672)
+#   print("> Rabbitmq port closed")
 
 @hpc.command('connect')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
@@ -318,7 +321,7 @@ def connect(config, backend, storage, debug):
   """ start connection with HPC cluster """
   mount_directory(config, backend, storage, debug)
   start_rbmq_forwarding(config, backend, storage, debug)
-  
+ 
 @hpc.command('disconnect')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
@@ -845,14 +848,30 @@ def deploy(name, storage, backend, memory, timeout, config, debug):
     setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
-
+    config_copy= config if config else None
     config = load_yaml_config(config) if config else None
     config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
     config = default_config(config_data=config, config_overwrite=config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
         raise Exception('"lithops runtime deploy" command is only available for serverless backends')
-
+    
+    if config['lithops']['backend'] =='hpc':
+      rbmq_url=config['rabbitmq']['amqp_url']
+      logger.info(f'Cheking if RabbitMQ connection on {rbmq_url}')
+      if check_rabbitmq_connection(rbmq_url):
+        logger.info(f'RabbitMQ is deployed')
+      else:
+        logger.info('Deploying RabbitMQ ...')
+        RABBITMQ_HOME = os.getenv("RABBITMQ_HOME")+'/start_rabbitmq_master.sh'
+        sp.run(RABBITMQ_HOME,check=True)
+        time.sleep(10)
+        config = load_yaml_config(config_copy) if config_copy else None
+        config_ow = set_config_ow(backend=backend, storage=storage, runtime_name=name)
+        config = default_config(config_data=config, config_overwrite=config_ow)
+        rbmq_url=config['rabbitmq']['amqp_url']
+        logger.info(f'RabbitMQ is deployed')
+        
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
