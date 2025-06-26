@@ -55,11 +55,12 @@ done
 
 #Updating LITHOPS_CONFIG_FILE
 rmq_node=$(squeue -j "$rmq_batch_job" -h -o "%R")
-echo "Setting Lithops Background"
+rmq_ip=$(grep ${rmq_node}-data /etc/hosts | cut -f1 -d " ")
+echo "Setting Lithops Background for ${rmq_ip}"
 current_rbmq=$(grep -v "#" $LITHOPS_CONFIG_FILE | grep "amqp_url" | cut -f4 -d":" | cut -f2 -d"@" | xargs)
-sed -i "s/$current_rbmq/$rmq_node/" "$LITHOPS_CONFIG_FILE"
+sed -i "s/$current_rbmq/$rmq_ip/" "$LITHOPS_CONFIG_FILE"
 
-# Forwarding RMBQ
+# Forwarding RBMQ
 echo "Forwarding RabbitMQ"
 storage_root=$(grep -v "#" $LITHOPS_CONFIG_FILE | grep "storage_root" | cut -f2 -d":" | xargs)
 storage_bucket=$(grep -v "#" $LITHOPS_CONFIG_FILE | grep "storage_bucket" | cut -f2 -d":" | xargs)
@@ -72,6 +73,6 @@ if [ $? -eq 0 ]; then
 else
     echo "Failed to create tunnel."
 fi
+sleep 10
 echo "RabbitMQ DONE"
-
 cd "$current_dir" || exit
