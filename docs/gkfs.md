@@ -115,3 +115,4 @@ cd $LITHOPS_HPC_HOME/examples/os_bmk
 mkdir -p plots
 LD_PRELOAD=${GKFS} python os_benchmark.py run -b hpc -s pfs --mb_per_file=512 --bucket_name=$GKFS_MNT --outdir=plots --number=100 --read_times 1 --name gkfs_100tasks_1times
 ```
+## FAQs
