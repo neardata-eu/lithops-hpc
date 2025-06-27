@@ -15,6 +15,11 @@ lithops:
   execution_timeout: <timeout>
   log_level: <DEBUG/INFO>
 
+###Monitoring system implementation.
+  monitoring_interval: <time in seconds>
+  monitoring: <rabbitmq or storage> 
+#monitoring: storage is mandatory when applications are submitted from a local PC
+
 ###Storage
 #You must also configure the storage backend:
 pfs:
@@ -26,6 +31,12 @@ pfs:
 #Emulated storage buckets will become directories within the root.
 #The configured storage bucket is where Lithops internal files will reside (e.g., job status and intermediate data), and also the default location for objects through the Lithops Storage API.
 #For instance, you may use the `.storage` dir within this repo.
+
+### RabbitMQ settings can be auto-configured during backend deployment. To configure manually:
+rabbitmq:
+  amqp_url: amqp://<user>:<pass>@<node-ip>:5672/<vhost>
+#Use localhost as <node-ip> for the client side (local PC)
+#Use allocated node IP as <node-ip> for the provider side (HPC cluster)
 
 ### Cluster_hpc
 #You must also configure the credential to connect to the HPC server:

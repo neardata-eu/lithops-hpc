@@ -67,6 +67,6 @@ python flops_gpu_benchmark_v2.py \
 
 ---
 
-## 📎 Related Resources
+##  Related Resources
 
 - [Getting started with Lithops-HPC](#)
