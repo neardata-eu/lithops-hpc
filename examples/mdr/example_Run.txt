@@ -1,0 +1,1 @@
+python mdr.py mdr_config.yml -w 8 -c 4 -s 0 -e 3

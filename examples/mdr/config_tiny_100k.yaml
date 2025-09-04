@@ -1,0 +1,10 @@
+# Data:
+root_path: "~/lithops-hpc-examples/mdr"
+samples_file: "data/synthetic_100kSNP_1128p/input/samples/chr0_synth000000.vcf"
+patients_file: "data/synthetic_100kSNP_1128p/input/labels.sample"
+output_dir: "data/synthetic_100kSNP_1128p/output"
+
+# MDR parameters
+CV_sets: 5
+filter_imp: 0.9 # filter for imputation
+prediction_power_tol: 2.2 # SNPij accumulative error tol
