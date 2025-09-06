@@ -1,0 +1,23 @@
+start: "2025-09-10"
+periods: 336          # 14 days * 24 hours = 336 hours
+freq: "H"             # hourly resolution
+
+base_rate: 20.0
+trend_per_step: 0.02  # slow growth over time
+
+daily_seasonality: 8.0
+weekly_seasonality: 4.0
+
+noise_std: 2.0
+ar1_phi: 0.3
+
+bursts:
+  probability: 0.01
+  mean_duration: 24
+  intensity: 3.0
+
+change_points:
+  - at: "2025-09-10"
+    multiplier: 1.0
+
+min_rate: 0.1

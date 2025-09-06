@@ -1,0 +1,5 @@
+python workload_simulator.py --config train_config.yaml --seed 95 --csv train_data.csv --plot train_plot.png
+
+python workload_simulator.py --config test_config.yaml --seed 95 --csv test_data.csv --plot test_plot.png
+
+python runWorkload.py --csv test_data.csv --sleep 10

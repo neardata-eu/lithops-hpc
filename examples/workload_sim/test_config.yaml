@@ -1,0 +1,24 @@
+start: "2025-09-05 20:05:00"
+periods: 12          # 2 hours * 6 steps/hour = 12 steps
+freq: "2min"         # 5-minute resolution
+
+base_rate: 30.0
+trend_per_step: 0.0  # keep flat for testing
+
+daily_seasonality: 0.0
+weekly_seasonality: 0.0
+
+noise_std: 1.0
+ar1_phi: 0.0
+
+bursts:
+  probability: 0.0   # disable bursts for clean test
+  mean_duration: 0
+  intensity: 1.0
+
+#change_points: []
+change_points:
+  - at: "2025-09-05"
+    multiplier: 1
+
+min_rate: 0.1
