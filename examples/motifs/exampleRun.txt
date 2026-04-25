@@ -1,0 +1,8 @@
+export PYTHONPATH=/home/bsc/bsc098254/lithops-hpc-examples/motifs:$PYTHONPATH
+export bucket_name=/home/bsc/bsc098254/lithops-hpc-examples/motifs/data
+
+python fasta_generator.py --bucket_name $bucket_name --fasta_name training --num_seqs 100 --percentage_pos_seqs 0.6
+python fasta_generator.py --bucket_name $bucket_name --fasta_name testing --num_seqs 100 --seed 1
+
+python motifs_gpu_train.py --bucket_name $bucket_name --fasta_name training --chunk_size 20
+python motifs-gpu-detect.py --bucket_name $bucket_name --fasta_name testing --chunk_size 20 --model_name training.model
