@@ -4,7 +4,22 @@ This project demonstrates a complete workflow to generate synthetic FASTA datase
 
 ---
 
-## 📋 Overview
+## Quick Start
+
+```bash
+export PYTHONPATH=$(pwd):$PYTHONPATH
+export bucket_name=$(pwd)/data
+
+mkdir -p $bucket_name
+
+python fasta_generator.py --bucket_name $bucket_name --fasta_name training --num_seqs 100 --percentage_pos_seqs 0.6
+python fasta_generator.py --bucket_name $bucket_name --fasta_name testing --num_seqs 100 --seed 1
+python motifs_gpu_train.py --bucket_name $bucket_name --fasta_name training --chunk_size 20
+python motifs-gpu-detect.py --bucket_name $bucket_name --fasta_name testing --chunk_size 20 --model_name training.model
+```
+---
+
+## Overview
 
 The pipeline consists of four main steps:
 
@@ -15,27 +30,13 @@ The pipeline consists of four main steps:
 
 ---
 
-## ⚙️ Prerequisites
-
-- Python 3.x
-- Required Python dependencies
-- GPU support (recommended)
-- CUDA properly configured (if using GPU)
+## Prerequisites
+- Python 3.11.9, torch 2.2.0, numpy 1.26.4
+- GPU-CUDA support (recommended)
 
 ---
 
-## 🧩 Project Structure
-
-.
-├── fasta_generator.py
-├── motifs_gpu_train.py
-├── motifs-gpu-detect.py
-├── data/
-└── README.md
-
----
-
-## 🔧 Step 1: Setup Environment
+## Step 1: Setup Environment
 
 ```bash
 export PYTHONPATH=$(pwd):$PYTHONPATH
@@ -44,7 +45,7 @@ export bucket_name=$(pwd)/data
 
 ---
 
-## 📁 Step 2: Generate FASTA Datasets
+## Step 2: Generate FASTA Datasets
 
 ### Training Dataset
 ```bash
@@ -58,33 +59,16 @@ python fasta_generator.py --bucket_name $bucket_name --fasta_name testing --num_
 
 ---
 
-## 🧠 Step 3: Train the GPU Model
+## Step 3: Train the MOTIF Model
 
 ```bash
-python motifs_gpu_train.py --bucket_name $bucket_name --fasta_name training --chunk_size 20
+python motifs_train.py --bucket_name $bucket_name --fasta_name training --chunk_size 20
 ```
 
 ---
 
-## 🔍 Step 4: Run Detection
+## Run Detection
 
 ```bash
-python motifs-gpu-detect.py --bucket_name $bucket_name --fasta_name testing --chunk_size 20 --model_name training.model
+python motifs_detect.py --bucket_name $bucket_name --fasta_name testing --chunk_size 20 --model_name training.model
 ```
-
----
-
-## 🚀 Full Workflow
-
-```bash
-export PYTHONPATH=$(pwd):$PYTHONPATH
-export bucket_name=$(pwd)/data
-
-mkdir -p $bucket_name
-
-python fasta_generator.py --bucket_name $bucket_name --fasta_name training --num_seqs 100 --percentage_pos_seqs 0.6
-python fasta_generator.py --bucket_name $bucket_name --fasta_name testing --num_seqs 100 --seed 1
-python motifs_gpu_train.py --bucket_name $bucket_name --fasta_name training --chunk_size 20
-python motifs-gpu-detect.py --bucket_name $bucket_name --fasta_name testing --chunk_size 20 --model_name training.model
-```
-
