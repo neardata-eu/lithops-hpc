@@ -1,8 +1,8 @@
 # Data:
-root_path: "~/lithops-hpc-examples/mdr"
-samples_file: "data/synthetic_100kSNP_1128p/input/samples/chr0_synth000000.vcf"
-patients_file: "data/synthetic_100kSNP_1128p/input/labels.sample"
-output_dir: "data/synthetic_100kSNP_1128p/output"
+root_path: "/lithops-hpc/examples/mdr/data/tiny_100K_1f_1128p"
+samples_file: "input/samples/chr0_synth000000.vcf"
+patients_file: "input/labels.sample"
+output_dir: "output-lhops"
 
 # MDR parameters
 CV_sets: 5
