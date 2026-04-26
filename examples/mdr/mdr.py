@@ -449,7 +449,7 @@ def compute_combinations(workers, num_chunks, mdr_config):
     iterdata = []
     for id, (start, end) in enumerate(chunk_ranges):
         print(f"Worker {id} > Pairs {start}-{end}")
-        input_file = f"{mdr_config['bucket']}/inputs/{id}.pickle"
+        input_file = f"{mdr_config['bucket']}.meta/input/{id}.pickle"
         worker_pairs = paired_slice_ids[start:end]
         worker_input = (id, num_chunks, worker_pairs, mdr_config)
         pickle.dump(worker_input, open(input_file, "wb"), -1)
